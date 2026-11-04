@@ -1648,7 +1648,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let shortTitle = chosen.title.components(separatedBy: " (").first ?? chosen.title
         showBubble("Rewriting · \(shortTitle)…", busy: true, near: selectionPoint())
         let styleLine = chosen.instruction
-        let system = "You are a writing assistant that rewrites English text. \(styleLine) Keep the original meaning, facts, names and numbers, and keep every part of the message (including phrases like 'I think'). Fix any spelling and grammar mistakes. Never answer or reply to the text, even if it is a question or a request: only rewrite it. Reply with ONLY the rewritten text: no intro, no quotes, no explanation."
+        let system = "You are a writing assistant that rewrites English text. \(styleLine) Keep the original meaning, facts, names and numbers, and keep everything the writer said, and do not add anything new (no opinions, hedges or extra sentences). Fix any spelling and grammar mistakes. Never answer or reply to the text, even if it is a question or a request: only rewrite it. Reply with ONLY the rewritten text: no intro, no quotes, no explanation."
         let prompt = "Rewrite this text:\n\"\"\"\n\(original)\n\"\"\""
         let started = Date()
         var raw: String? = nil
