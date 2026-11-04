@@ -97,6 +97,63 @@ Terminal and code editors are off by default.
 
 **Getting a new model:** use **Download a model…** in the menu bar (or `ollama pull <name>` in Terminal). New models show up in the menu within seconds, with no restart needed. Embedding models are hidden because they can't write text.
 
+### How the model changes Fixaro
+
+| | Smaller model | Bigger model |
+|---|---|---|
+| **Speed** | Fixes in about 0.1–0.2 s | Fixes take longer |
+| **Picking the right word** | Misses more often when the sentence matters ("frim" → from or firm?) | Reads the sentence better |
+| **Rephrasing** | Fixes grammar, but the writing is plainer | Writes more naturally |
+| **Memory** | Leaves more room for your other apps | Can slow other apps on smaller Macs |
+
+What that means in practice:
+
+- **Word fixes have 1.5 seconds.** If the model hasn't answered by then, Fixaro uses the spell checker's first guess instead, which ignores the sentence. A model that's too big for your Mac quietly makes your fixes worse, not better.
+- **Models stay loaded while you use them:** the word-fix model for 30 minutes after its last fix, the rephrase model for 15. The model's size is roughly the memory it takes, and two models take both. Try to keep the total under about half your Mac's memory.
+- **The first use after a break is slower** (a few seconds) while the model loads. After that it's fast.
+- **Bigger models use more battery** for every fix.
+
+### Suggested models
+
+**Tested** on an M-series Mac with 18 GB of memory:
+
+| Model | Size | Best for | Typos fixed | Time per word | Rephrasing |
+|---|---|---|---|---|---|
+| **qwen3.5:4b** | 4.0 GB | **Word fixes** (default) | **18/18** | 0.21 s | Good |
+| qwen3.5:2b | 3.1 GB | Word fixes on 8 GB Macs | 17/18 | 0.12 s | OK |
+| **gemma4:e4b** | 9.6 GB | **Rephrasing** on 18 GB+ | **18/18** | 0.36 s | **Best** |
+
+**Worth trying** (newer models, not tested with Fixaro yet):
+
+| Model | Size | Try it for | Why |
+|---|---|---|---|
+| `granite4.2:3b` | 2.2 GB | Word fixes | Small, recent model from IBM |
+| `nemotron-3-nano:4b` | 2.9 GB | Word fixes | Recent model from NVIDIA |
+| `lfm3:1.7b` | under 2 GB | Word fixes on 8 GB Macs | Very small and fast |
+| `ministral-3:3b` | 3.0 GB | Word fixes | Small model from Mistral |
+| `phi4-mini` | 2.5 GB | Word fixes | Older, well-known |
+| `llama3.2:3b` | 2.0 GB | Word fixes | Older, well-known |
+| `qwen3.5:9b` | 6.6 GB | Rephrasing on 18 GB+ | Bigger Qwen, better writing |
+| `gemma4:12b` | 7.7 GB | Rephrasing on 18 GB+ | Bigger Gemma, better writing |
+
+If you have **32 GB or more**, larger models (like `gemma4:26b` or `qwen3.6:27b`) can write even better rephrases. Keep them for rephrasing, and a small model for word fixes.
+
+**Not a good fit:**
+
+- **Reasoning models** (`deepseek-r1`, anything named `-reasoning` or `-thinking`): they "think" before answering, so they're slow. Fixaro switches thinking off where a model allows it.
+- **Vision models** (names with `-vl` or `vision`): they work, but use extra memory for nothing. Fixaro prefers text-only models when it picks defaults.
+- **Big models for word fixes** (9B and up): they're slower and take more memory, and a small model already gets almost every word right. If you try one, check the log for "LLM too slow".
+
+### Model tips
+
+- **Test before you choose.** Run `python3 tools/bench.py` to test every model you've installed, or name a few: `python3 tools/bench.py qwen3.5:4b granite4.2:3b`. It checks 46 typos (28 of them need the sentence to get right) and 5 rephrase jobs, and shows how fast each model is.
+- **Check the log** (menu → **Open log**). Each fix says which model made it and how long it took:
+  - Lots of **"LLM too slow"**: your word-fix model is too big for your Mac. Pick a smaller one.
+  - Lots of **"LLM gave no usable answer"**: the model is chatty instead of answering with one word. Try another.
+- **Short on memory?** Use the same model for both jobs, so only one is loaded.
+- **Clean up** models you don't use: `ollama list` shows them with their sizes, and `ollama rm <name>` deletes one.
+- **Keep Ollama updated.** New models often need the latest version.
+
 ### Use another AI app instead of Ollama (beta)
 
 Already use **LM Studio**, **Jan**, a **llama.cpp** server or an **MLX** server? Fixaro works with any app that offers an OpenAI-compatible API:
@@ -108,16 +165,6 @@ Already use **LM Studio**, **Jan**, a **llama.cpp** server or an **MLX** server?
 If you enter an address that isn't on your Mac, Fixaro warns you first, because your text would then leave your computer.
 
 This is new: if it doesn't work with your app, please [open an issue](https://github.com/Z2mjeed-prog/Fixaro/issues) and say which app and model you use.
-
-Results from `tools/bench.py` on an M-series Mac with 18 GB of memory (18 real typos plus one rephrase):
-
-| Model | Size | Typos fixed | Time per word | Rephrase quality |
-|---|---|---|---|---|
-| qwen3.5:2b | 3.1 GB | 17/18 | 0.16 s | OK |
-| **qwen3.5:4b** | 4.0 GB | **18/18** | 0.31 s | Good |
-| **gemma4:e4b** | 9.6 GB | **18/18** | 0.44 s | **Best** |
-
-To test the models on your own Mac, run `python3 tools/bench.py`. It compares every model you've installed and shows how accurate and how fast each one is.
 
 ## Tips and troubleshooting
 
