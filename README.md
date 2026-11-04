@@ -41,11 +41,15 @@ Fixaro needs **Accessibility** permission. That's the only way a Mac app can see
 ## Install
 
 1. **Install Ollama** from [ollama.com](https://ollama.com) and open it.
-2. **Download the models:**
-   ```bash
-   ollama pull qwen3.5:4b     # word fixes (4 GB)
-   ollama pull gemma4:e4b     # optional: better rephrasing (9.6 GB, needs 16 GB+ memory)
-   ```
+2. **Download a model.** You can use any model you like (see [Choosing models](#choosing-models)). Recommended, by your Mac's memory (Apple menu → About This Mac):
+
+   | Your Mac's memory | Word fixes | Rephrasing | Commands |
+   |---|---|---|---|
+   | **8 GB** | qwen3.5:2b | qwen3.5:2b | `ollama pull qwen3.5:2b` |
+   | **16 GB** | qwen3.5:4b | qwen3.5:4b | `ollama pull qwen3.5:4b` |
+   | **18 GB or more** | qwen3.5:4b | gemma4:e4b | `ollama pull qwen3.5:4b`<br>`ollama pull gemma4:e4b` |
+
+   One model can do both jobs. On 16 GB you can also use gemma4:e4b for rephrasing, but with both models loaded, other apps may slow down.
 3. **Download Fixaro:**
    ```bash
    git clone https://github.com/Z2mjeed-prog/Fixaro.git
@@ -56,9 +60,7 @@ Fixaro needs **Accessibility** permission. That's the only way a Mac app can see
    bash Fixaro/build.sh
    ```
 5. **Allow it:** when macOS asks, open **System Settings → Privacy & Security → Accessibility** and turn **Fixaro** on.
-6. **Pick models** from the Fixaro menu bar icon:
-   - **Word-fix model** → `qwen3.5:4b`
-   - **Rephrase model** → `gemma4:e4b`, or `qwen3.5:4b` on 8 GB Macs
+6. **Pick your models** from the Fixaro menu bar icon: **Word-fix model** and **Rephrase model**. Fixaro picks sensible defaults from what you've installed, and you can change them any time.
 
 ## Using it
 
@@ -75,6 +77,13 @@ Terminal and code editors are off by default.
 
 ## Choosing models
 
+**Any model works.** Fixaro lists every text model you've installed in Ollama, and you choose one for each job in the menu bar:
+
+- **Word-fix model:** runs on every typo, so pick something **small and fast** (about 4 GB or less).
+- **Rephrase model:** runs only when you press ⌃⌥R, so a **bigger model** that writes better is fine, if your Mac has the memory.
+
+To try another model, run `ollama pull <name>` and pick it from the menu. Image and embedding models are hidden because they can't do this job.
+
 Results from `tools/bench.py` on an M-series Mac with 18 GB of memory (18 real typos plus one rephrase):
 
 | Model | Size | Typos fixed | Time per word | Rephrase quality |
@@ -83,7 +92,7 @@ Results from `tools/bench.py` on an M-series Mac with 18 GB of memory (18 real t
 | **qwen3.5:4b** | 4.0 GB | **18/18** | 0.31 s | Good |
 | **gemma4:e4b** | 9.6 GB | **18/18** | 0.44 s | **Best** |
 
-To test the models on your own Mac, run `python3 tools/bench.py`.
+To test the models on your own Mac, run `python3 tools/bench.py`. It compares every model you've installed and shows how accurate and how fast each one is.
 
 ## Tips and troubleshooting
 
