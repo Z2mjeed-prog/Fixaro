@@ -6,7 +6,7 @@
 
 <p align="center"><b>Private grammar fixing and rewriting for every app on your Mac.<br>Your text never leaves your computer.</b></p>
 
-Online writing assistants send what you write to their servers. Fixaro doesn't: its AI runs on your own Mac, so you can use it on confidential emails, client details, contracts and reports. Select text, press **⌃⌥R**, and get correct grammar in your usual style. Press **⌃⌥S** instead to pick a style or say exactly how you want it rewritten. While you type, it fixes typos too.
+Online writing assistants send what you write to their servers. Fixaro doesn't: its AI runs on your own Mac, so you can use it on confidential emails, client details, contracts and reports. Select text, press **⌃⌥R**, and get correct grammar in your usual style. Press **⌃⌥S** instead to pick a style or say exactly how you want it rewritten. It can also fix typos as you type, if you turn that on.
 
 <p align="center">
   <img src="docs/demo-email.gif" width="800" alt="A casual email draft in Apple Mail, 'Hey, can you send me the sales numbers by tomorrow? ... thanks', is selected, Control-Option-R is pressed, and with the Professional style it becomes 'Could you please send me the sales numbers by tomorrow? I require them for the meeting on Thursday. Please let me know if this presents any issues. Thank you.'">
@@ -83,11 +83,9 @@ To change or delete styles, choose **Edit my styles…**. They're kept in one te
 
 To change your usual style (the one ⌃⌥R uses), pick it under **Rephrase style**.
 
-### Only want the grammar and rewriting?
-
-Untick **Fix typos as I type** in the menu bar. ⌃⌥R keeps working, Fixaro leaves your typing alone, and only the rephrase model is loaded.
-
 ## Fix typos as you type
+
+**Off by default.** To turn it on, tick **Fix typos as I type** in the menu bar.
 
 <p align="center">
   <img src="docs/demo-context.gif" width="800" alt="Typing 'I got the money frim the bank': Fixaro changes frim to from. Then 'The new frim policy': the same typo becomes firm, because Fixaro reads the words around it.">
@@ -160,7 +158,7 @@ Want to try others? See the [model test results](docs/MODELS.md).
 
 | You want to… | Do this |
 |---|---|
-| Fix typos | Just type. Fixes happen after Space or Enter |
+| Fix typos as you type | Menu → tick **Fix typos as I type**. Fixes happen after Space or Enter |
 | Undo a fix | Backspace right after it, or **⌃⌥Z** |
 | Rephrase text | Select it, press **⌃⌥R** |
 | Choose a style, or say how to rewrite it | Select it, press **⌃⌥S** |
@@ -168,14 +166,13 @@ Want to try others? See the [model test results](docs/MODELS.md).
 | Change models | Menu → **Word-fix model** / **Rephrase model** |
 | Never correct a word | Menu → **Edit word list…** |
 | Turn it off in some apps | Menu → **Turn off in apps** |
-| Rephrase only, no autocorrect | Menu → untick **Fix typos as I type** |
 | Pause everything | Menu → **Pause** |
 
 Terminal and code editors are off by default. Fixaro also works with LM Studio, Jan and other local AI apps ([how](docs/MODELS.md#use-another-ai-app-instead-of-ollama-beta)).
 
 ## Troubleshooting
 
-- **Turn off macOS's own autocorrect** (System Settings → Keyboard → Text Input → Edit), so two autocorrects don't clash.
+- **If you turn on typo fixing,** turn off macOS's own autocorrect (System Settings → Keyboard → Text Input → Edit), so two autocorrects don't clash.
 - **Menu bar icon shows ⚠:** Fixaro lost its permission. After every rebuild, switch it off and on again under Accessibility.
 - **Rephrase does nothing:** make sure Ollama is running and some text is selected.
 - **Anything odd:** menu → **Open log** shows every fix and why it was made.
