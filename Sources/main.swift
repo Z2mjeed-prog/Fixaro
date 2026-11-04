@@ -165,24 +165,35 @@ enum Typist {
     }
 }
 
-// MARK: - Ollama (local)
+// MARK: - Local AI server (Ollama, or any app with an OpenAI-compatible API)
 
-struct OllamaModel { let name: String; let size: Int64 }
+struct OllamaModel { let name: String; let size: Int64 }   // size is 0 when the server doesn't report it
+
+enum ServerKind: String { case ollama, openai }
 
 enum Ollama {
-    static let base = "http://127.0.0.1:11434"
+    static var kind: ServerKind = .ollama
+    static var base = "http://127.0.0.1:11434"     // for .openai, e.g. http://localhost:1234/v1
+
+    static func hostPort(_ s: String) -> String {
+        guard let u = URL(string: s), let h = u.host else { return s }
+        if let p = u.port { return "\(h):\(p)" }
+        return h
+    }
+
+    static var displayName: String { kind == .ollama ? "Ollama" : "AI app at \(hostPort(base))" }
 
     static func listModels() async -> [OllamaModel]? {
-        guard let url = URL(string: base + "/api/tags") else { return nil }
+        let path = kind == .ollama ? "/api/tags" : "/models"
+        guard let url = URL(string: base + path) else { return nil }
         var req = URLRequest(url: url)
         req.timeoutInterval = 2
         guard let result = try? await URLSession.shared.data(for: req),
-              let obj = try? JSONSerialization.jsonObject(with: result.0) as? [String: Any],
-              let arr = obj["models"] as? [[String: Any]] else { return nil }
+              let obj = try? JSONSerialization.jsonObject(with: result.0) as? [String: Any] else { return nil }
+        let arr = (obj[kind == .ollama ? "models" : "data"] as? [[String: Any]]) ?? []
         return arr.compactMap { m in
-            guard let n = m["name"] as? String else { return nil }
-            let low = n.lowercased()
-            if ["embed", "llava", "vision", "-vl", "vl:", "ocr"].contains(where: { low.contains($0) }) { return nil }
+            guard let n = (m["name"] as? String) ?? (m["id"] as? String) else { return nil }
+            if n.lowercased().contains("embed") { return nil }        // embedding models can't write text
             let size = (m["size"] as? NSNumber)?.int64Value ?? 0
             return OllamaModel(name: n, size: size)
         }
@@ -190,6 +201,9 @@ enum Ollama {
 
     static func generate(model: String, system: String, prompt: String, numPredict: Int = 16, timeout: Double = 30,
                          keepAlive: String = "30m") async -> String? {
+        if kind == .openai {
+            return await chat(model: model, system: system, prompt: prompt, maxTokens: numPredict, timeout: timeout)
+        }
         guard let url = URL(string: base + "/api/generate") else { return nil }
         for sendThinkFlag in [true, false] {
             var body: [String: Any] = [
@@ -214,6 +228,67 @@ enum Ollama {
             }
         }
         return nil
+    }
+
+    /// OpenAI-compatible chat API (LM Studio, llama.cpp, MLX servers, Jan, …).
+    static func chat(model: String, system: String, prompt: String, maxTokens: Int, timeout: Double) async -> String? {
+        guard let url = URL(string: base + "/chat/completions") else { return nil }
+        var messages: [[String: String]] = []
+        if !system.isEmpty { messages.append(["role": "system", "content": system]) }
+        messages.append(["role": "user", "content": prompt])
+        let body: [String: Any] = ["model": model, "messages": messages, "temperature": 0,
+                                   "max_tokens": maxTokens, "stream": false]
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = timeout
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        guard let result = try? await URLSession.shared.data(for: req) else { return nil }
+        let status = (result.1 as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200,
+              let obj = try? JSONSerialization.jsonObject(with: result.0) as? [String: Any],
+              let choices = obj["choices"] as? [[String: Any]],
+              let message = choices.first?["message"] as? [String: Any],
+              let content = message["content"] as? String else {
+            let text = String(data: result.0, encoding: .utf8) ?? ""
+            logLine("AI app error \(status): \(text.prefix(200))")
+            return nil
+        }
+        return content
+    }
+
+    /// Download a model with Ollama, reporting progress ("42%").
+    static func pull(_ name: String, progress: @escaping @MainActor (String) -> Void) async -> Bool {
+        guard kind == .ollama, let url = URL(string: base + "/api/pull") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 3600
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": name, "name": name, "stream": true])
+        do {
+            let (bytes, response) = try await URLSession.shared.bytes(for: req)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { return false }
+            var lastShown = ""
+            for try await line in bytes.lines {
+                guard let data = line.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                if let err = obj["error"] as? String { logLine("download error: \(err)"); return false }
+                let status = obj["status"] as? String ?? ""
+                if status == "success" { return true }
+                var shown = status
+                if let total = (obj["total"] as? NSNumber)?.doubleValue, total > 0,
+                   let done = (obj["completed"] as? NSNumber)?.doubleValue {
+                    shown = "\(Int(done / total * 100))%"
+                }
+                if shown != lastShown && !shown.isEmpty {
+                    lastShown = shown
+                    await progress(shown)
+                }
+            }
+        } catch {
+            logLine("download error: \(error.localizedDescription)")
+        }
+        return false
     }
 }
 
@@ -329,6 +404,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         get { EngineChoice(rawValue: defaults.string(forKey: "engine") ?? "") ?? .auto }
         set { defaults.set(newValue.rawValue, forKey: "engine"); resolveEngine() }
     }
+    var serverKind: ServerKind {
+        get { ServerKind(rawValue: defaults.string(forKey: "serverKind") ?? "") ?? .ollama }
+        set { defaults.set(newValue.rawValue, forKey: "serverKind") }
+    }
+    var serverURL: String {
+        get { defaults.string(forKey: "serverURL") ?? "http://127.0.0.1:11434" }
+        set { defaults.set(newValue, forKey: "serverURL") }
+    }
+    var downloadStatus: String?
+    var lastModelRefresh = Date.distantPast
+
     var rephraseModelSetting: String? {
         get { defaults.string(forKey: "rephraseModel") }
         set { defaults.set(newValue, forKey: "rephraseModel") }
@@ -384,6 +470,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.reloadWordList() }
         }
+        // Pick up models you download or load later, without restarting
+        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.refreshModelList() }
+            }
+        }
+        Ollama.kind = serverKind
+        Ollama.base = serverURL
 
         startWhenTrusted()
         Task { await self.refreshEngines() }
@@ -446,8 +541,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let wordModel = ollamaModel ?? "none"
         let rephModel = rephraseModelSetting ?? "none"
         logLine("Mac memory: \(memText) · models: \(sizes.joined(separator: ", ")) · word fixes: \(wordModel) · rephrase: \(rephModel)")
-        logLine("Engines · Apple Intelligence: \(appleOK ? "available" : "not available") · Ollama models: \(ollamaModels.isEmpty ? "none / not running" : ollamaModels.map(\.name).joined(separator: ", ")) · Using: \(engineLabel(activeEngine))")
+        logLine("Engines · Apple Intelligence: \(appleOK ? "available" : "not available") · \(Ollama.displayName) models: \(ollamaModels.isEmpty ? "none / not running" : ollamaModels.map(\.name).joined(separator: ", ")) · Using: \(engineLabel(activeEngine))")
+        lastModelRefresh = Date()
         await warmUp()
+    }
+
+    /// Re-read the model list (cheap): new downloads appear in the menu without restarting.
+    func refreshModelList() async {
+        lastModelRefresh = Date()
+        let ms = await Ollama.listModels() ?? []
+        let names = ms.map(\.name)
+        guard names != ollamaModels.map(\.name) else { return }
+        ollamaModels = ms
+        if ollamaModel == nil || !names.contains(ollamaModel ?? "") { ollamaModel = pickDefaultModel(ms) }
+        if rephraseModelSetting == nil || !names.contains(rephraseModelSetting ?? "") {
+            rephraseModelSetting = pickRephraseModel(ms)
+        }
+        resolveEngine()
+        logLine("Models at \(Ollama.displayName): \(names.isEmpty ? "none" : names.joined(separator: ", "))")
+    }
+
+    /// Image/vision models can write text too, but text models are the better default.
+    func textFirst(_ ms: [OllamaModel]) -> [OllamaModel] {
+        let text = ms.filter { m in !["llava", "vision", "-vl", "vl:", "ocr"].contains(where: { m.name.lowercased().contains($0) }) }
+        return text.isEmpty ? ms : text
     }
 
     func warmUp() async {
@@ -460,19 +577,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .ollama:
             guard let m = ollamaModel else { return }
             let r = await Ollama.generate(model: m, system: systemFor(systemPrompt, model: m), prompt: sample, numPredict: 24)
-            logLine("Ollama \(m) warm-up: \(r?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "no reply") in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
+            logLine("\(Ollama.displayName) \(m) warm-up: \(r?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "no reply") in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
         default: break
         }
     }
 
     /// Biggest installed text model that comfortably fits in this Mac's memory.
-    func pickRephraseModel(_ ms: [OllamaModel]) -> String? {
+    func pickRephraseModel(_ all: [OllamaModel]) -> String? {
+        let ms = textFirst(all)
         let ram = Double(ProcessInfo.processInfo.physicalMemory)
         let fits = ms.filter { $0.size > 0 && Double($0.size) <= ram * 0.55 }.sorted { $0.size > $1.size }
         return (fits.first ?? ms.sorted { $0.size < $1.size }.first)?.name
     }
 
-    func pickDefaultModel(_ ms: [OllamaModel]) -> String? {
+    func pickDefaultModel(_ all: [OllamaModel]) -> String? {
+        let ms = textFirst(all)
         let preferred = ["qwen3.5:4b", "qwen3.5:2b", "phi4-mini", "llama3.2:3b", "gemma4:e2b", "qwen3:4b", "gemma4:e4b"]
         for p in preferred {
             if let m = ms.first(where: { $0.name == p || $0.name.hasPrefix(p + ":") }) { return m.name }
@@ -494,7 +613,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func engineLabel(_ e: EngineChoice) -> String {
         switch e {
         case .apple: return "Apple Intelligence (on-device)"
-        case .ollama: return "Ollama · \(ollamaModel ?? "no model")"
+        case .ollama: return "\(Ollama.displayName) · \(ollamaModel ?? "no model")"
         case .spell, .auto: return "Spell checker only"
         }
     }
@@ -1442,6 +1561,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         reloadWordList()
+        if Date().timeIntervalSince(lastModelRefresh) > 5 { Task { await self.refreshModelList() } }
         menu.removeAllItems()
         let trusted = AXIsProcessTrusted()
 
@@ -1459,7 +1579,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let choices: [(EngineChoice, String, Bool)] = [
             (.auto, "Auto (best available)", true),
             (.apple, "Apple Intelligence" + (appleOK ? "" : " (not available)"), appleOK),
-            (.ollama, "Ollama" + (ollamaModels.isEmpty ? " (not running)" : ""), !ollamaModels.isEmpty),
+            (.ollama, Ollama.displayName + (ollamaModels.isEmpty ? " (not running)" : ""), !ollamaModels.isEmpty),
             (.spell, "Spell checker only (fastest)", true)
         ]
         for (c, title, ok) in choices {
@@ -1498,6 +1618,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ri.submenu = rm
             menu.addItem(ri)
         }
+        // Where the AI runs: Ollama, or another local AI app
+        let serverMenu = NSMenu()
+        let presets: [(String, ServerKind, String)] = [
+            ("Ollama", .ollama, "http://127.0.0.1:11434"),
+            ("LM Studio (localhost:1234)", .openai, "http://localhost:1234/v1"),
+            ("llama.cpp or MLX server (localhost:8080)", .openai, "http://localhost:8080/v1"),
+            ("Jan (localhost:1337)", .openai, "http://localhost:1337/v1"),
+        ]
+        for (title, kind, url) in presets {
+            let it = item(title, #selector(selectServer(_:)))
+            it.representedObject = [kind.rawValue, url]
+            it.state = (serverKind == kind && serverURL == url) ? .on : .off
+            serverMenu.addItem(it)
+        }
+        let isPreset = presets.contains { $0.1 == serverKind && $0.2 == serverURL }
+        let other = item(isPreset ? "Other app (OpenAI-compatible)…" : "Other: \(serverURL)…", #selector(enterServerURL))
+        other.state = isPreset ? .off : .on
+        serverMenu.addItem(other)
+        let serverItem = NSMenuItem(title: "AI app: \(Ollama.displayName)", action: nil, keyEquivalent: "")
+        serverItem.submenu = serverMenu
+        menu.addItem(serverItem)
+        if serverKind == .ollama {
+            if let s = downloadStatus { menu.addItem(label(s)) }
+            else { menu.addItem(item("Download a model…", #selector(downloadModel))) }
+        }
         menu.addItem(item("Refresh engines", #selector(refreshEnginesAction)))
         menu.addItem(.separator())
 
@@ -1520,6 +1665,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             it.representedObject = bid
             menu.addItem(it)
         }
+        menu.addItem(appsMenuItem())
         menu.addItem(.separator())
 
         menu.addItem(label("Rephrase: select text, then press ⌃⌥R"))
@@ -1569,6 +1715,124 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         logLine("Rephrase model set to \(rephraseModelSetting ?? "none")")
     }
     @objc func refreshEnginesAction() { Task { await self.refreshEngines() } }
+
+    // MARK: Choosing the AI app and downloading models
+
+    @objc func selectServer(_ sender: NSMenuItem) {
+        guard let v = sender.representedObject as? [String], v.count == 2, let k = ServerKind(rawValue: v[0]) else { return }
+        applyServer(kind: k, url: v[1])
+    }
+
+    @objc func enterServerURL() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Use another AI app"
+        alert.informativeText = "Enter the address of a local AI app with an OpenAI-compatible API, for example LM Studio: http://localhost:1234/v1\n\nThe app must be running with a model loaded."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.stringValue = serverKind == .openai ? serverURL : "http://localhost:1234/v1"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Use It")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        var url = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        while url.hasSuffix("/") { url.removeLast() }
+        guard let u = URL(string: url), let scheme = u.scheme, ["http", "https"].contains(scheme), let host = u.host else {
+            NSSound.beep()
+            return
+        }
+        let onThisMac = ["localhost", "127.0.0.1", "::1"].contains(host)
+        if !onThisMac {
+            let warn = NSAlert()
+            warn.messageText = "Your text would leave this Mac"
+            warn.informativeText = "\(host) is not this Mac. Every word Fixaro checks and every text you rephrase would be sent there. Only continue if you trust that computer."
+            warn.addButton(withTitle: "Continue")
+            warn.addButton(withTitle: "Cancel")
+            guard warn.runModal() == .alertFirstButtonReturn else { return }
+        }
+        applyServer(kind: .openai, url: url)
+    }
+
+    func applyServer(kind: ServerKind, url: String) {
+        serverKind = kind
+        serverURL = url
+        Ollama.kind = kind
+        Ollama.base = url
+        ollamaModels = []
+        logLine("AI app set to \(Ollama.displayName) (\(url))")
+        Task { await self.refreshEngines() }
+    }
+
+    @objc func downloadModel() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Download a model"
+        alert.informativeText = "Type a model name from ollama.com/library, for example qwen3.5:4b or llama3.2:3b.\n\nBig models take a while. You can keep working; the menu shows the progress."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "qwen3.5:4b"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !name.contains(" ") else { NSSound.beep(); return }
+        downloadStatus = "Downloading \(name)…"
+        logLine("download: \(name) started")
+        Task {
+            let ok = await Ollama.pull(name) { status in self.downloadStatus = "Downloading \(name)… \(status)" }
+            self.downloadStatus = nil
+            logLine(ok ? "download: \(name) finished" : "download: \(name) failed (check the name on ollama.com/library)")
+            if !ok { NSSound.beep() }
+            await self.refreshModelList()
+        }
+    }
+
+    // MARK: Turning Fixaro off in specific apps
+
+    /// "Off in these apps" submenu: every open app plus every app already turned off. A checkmark = Fixaro is off there.
+    func appsMenuItem() -> NSMenuItem {
+        var apps: [(name: String, bid: String)] = []
+        var seen = Set<String>()
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            guard let bid = app.bundleIdentifier, bid != Bundle.main.bundleIdentifier, !seen.contains(bid) else { continue }
+            seen.insert(bid)
+            apps.append((app.localizedName ?? bid, bid))
+        }
+        for bid in excludedApps where !seen.contains(bid) {
+            seen.insert(bid)
+            var name = bid
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
+                name = FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+            } else {
+                continue                                   // not installed: nothing to show
+            }
+            apps.append((name, bid))
+        }
+        apps.sort { a, b in
+            let ao = excludedApps.contains(a.bid), bo = excludedApps.contains(b.bid)
+            if ao != bo { return ao }
+            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+        }
+        let sub = NSMenu()
+        sub.addItem(label("Checked apps: Fixaro stays off"))
+        for a in apps {
+            let it = item(a.name, #selector(toggleApp(_:)))
+            it.representedObject = a.bid
+            it.state = excludedApps.contains(a.bid) ? .on : .off
+            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: a.bid) {
+                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                icon.size = NSSize(width: 16, height: 16)
+                it.image = icon
+            }
+            sub.addItem(it)
+        }
+        let off = excludedApps.count
+        let mi = NSMenuItem(title: off == 0 ? "Turn off in apps" : "Turned off in \(off) app\(off == 1 ? "" : "s")",
+                            action: nil, keyEquivalent: "")
+        mi.submenu = sub
+        return mi
+    }
     @objc func forgetLearned() {
         learned.fixes = [:]
         saveLearned()
@@ -1583,6 +1847,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func toggleApp(_ sender: NSMenuItem) {
         guard let bid = sender.representedObject as? String else { return }
         if excludedApps.contains(bid) { excludedApps.remove(bid) } else { excludedApps.insert(bid) }
+        logLine(excludedApps.contains(bid) ? "turned off in \(bid)" : "turned on in \(bid)")
         reset()
     }
     @objc func toggleLogin() {
