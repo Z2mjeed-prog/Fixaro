@@ -47,7 +47,6 @@ Menu bar icon → **Rephrase style → Add a style…**. Give it a name and say 
 
 | Name | How it should sound |
 |---|---|
-| Board report | Formal, clear and concise, for a board committee report |
 | Customer reply | Polite, warm and short, for replying to a customer |
 | Slack message | Casual and brief, like a quick message to a teammate |
 | Simple English | Clear and simple, easy for non-native speakers to read |
