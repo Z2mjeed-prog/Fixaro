@@ -1535,6 +1535,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func addStyle() {
+        let previous = NSWorkspace.shared.frontmostApplication
+        defer {                                                       // hand the focus back to the app you were in
+            if let previous, previous.bundleIdentifier != Bundle.main.bundleIdentifier { previous.activate(options: []) }
+        }
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Add a rephrase style"
