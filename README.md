@@ -10,6 +10,12 @@ Online writing assistants send what you write to their servers. Fixaro doesn't: 
 
 ## Private by design
 
+Client details, account numbers, salaries: rewrite them without worrying, because they never leave your Mac.
+
+<p align="center">
+  <img src="docs/demo-private.gif" width="700" alt="A confidential note, 'the client in account 48213 missed two payments and owes 3,750 SAR. her salary went down to 9,000 so we should restructure the loan before it goes to collections', is selected, Control-Option-R is pressed, and it is rewritten on the Mac with the grammar fixed and every number kept.">
+</p>
+
 - **Your text stays on your Mac.** The AI runs locally through [Ollama](https://ollama.com). No account, no cloud, no tracking, and nothing is sent anywhere.
 - **Works offline.** Once your model is downloaded, Fixaro works with the internet switched off.
 - **Never sees passwords.** macOS hides password fields from all apps, Fixaro included.
