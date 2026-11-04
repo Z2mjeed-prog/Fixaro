@@ -23,7 +23,7 @@ Fixaro fixes typos as you type, in any app, using an AI model that runs on your 
 
 Fixaro needs **Accessibility** permission. That's the only way a Mac app can see what you type and replace a word in another app. Here's what that means in practice:
 
-- **Nothing leaves your Mac.** All AI runs locally through [Ollama](https://ollama.com). Fixaro makes no other network connections.
+- **Nothing leaves your Mac.** All AI runs locally through [Ollama](https://ollama.com) or another AI app on your Mac. Fixaro makes no other network connections.
 - **Passwords are hidden from it.** macOS hides keystrokes in password fields (Secure Input) from all apps, Fixaro included.
 - **What's saved, all on your Mac:**
   - your word list and learned fixes in `~/Library/Application Support/Fixaro/`
@@ -35,7 +35,7 @@ Fixaro needs **Accessibility** permission. That's the only way a Mac app can see
 ## Requirements
 
 - **macOS 14 or later.** Apple Silicon (M1 or newer) is recommended; Intel works, but the AI is slower.
-- **[Ollama](https://ollama.com)** (free), plus one or two models (below).
+- **[Ollama](https://ollama.com)** (free), plus one or two models (below). LM Studio, Jan, llama.cpp or MLX servers work too ([see below](#use-another-ai-app-instead-of-ollama)).
 - **Apple's free Command Line Tools.** The build script installs them if they're missing.
 
 ## Install
@@ -71,6 +71,9 @@ Fixaro needs **Accessibility** permission. That's the only way a Mac app can see
 | Rephrase text | Select it, then **⌃⌥R** (Control-Option-R) |
 | Never correct a word | Menu → **Edit word list…**, or undo its fix twice |
 | Turn it off in one app | Switch to that app, then menu → **Turn off in …** |
+| Turn it off in several apps | Menu → **Turn off in apps**, then tick the apps |
+| Use a different model | Menu → **Word-fix model** / **Rephrase model**, or **Download a model…** |
+| Use LM Studio, Jan, MLX… | Menu → **AI app** |
 | Pause everything | Menu → **Pause** |
 
 Terminal and code editors are off by default.
@@ -82,7 +85,17 @@ Terminal and code editors are off by default.
 - **Word-fix model:** runs on every typo, so pick something **small and fast** (about 4 GB or less).
 - **Rephrase model:** runs only when you press ⌃⌥R, so a **bigger model** that writes better is fine, if your Mac has the memory.
 
-To try another model, run `ollama pull <name>` and pick it from the menu. Image and embedding models are hidden because they can't do this job.
+**Getting a new model:** use **Download a model…** in the menu bar (or `ollama pull <name>` in Terminal). New models show up in the menu within seconds, with no restart needed. Embedding models are hidden because they can't write text.
+
+### Use another AI app instead of Ollama
+
+Already use **LM Studio**, **Jan**, a **llama.cpp** server or an **MLX** server? Fixaro works with any app that offers an OpenAI-compatible API:
+
+1. Start the app's local server and load a model.
+2. In Fixaro's menu bar icon, choose **AI app** and pick it (LM Studio, llama.cpp/MLX, Jan), or choose **Other app…** and enter its address, for example `http://localhost:1234/v1`.
+3. Pick your **Word-fix model** and **Rephrase model** from the list.
+
+If you enter an address that isn't on your Mac, Fixaro warns you first, because your text would then leave your computer.
 
 Results from `tools/bench.py` on an M-series Mac with 18 GB of memory (18 real typos plus one rephrase):
 

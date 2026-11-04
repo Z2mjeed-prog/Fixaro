@@ -8,6 +8,8 @@ BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$DIR/Info.p
 BUILD="$DIR/build/$APP.app"
 DEST="$HOME/Applications/$APP.app"
 LOG="$HOME/Library/Logs/$APP.log"
+# For development: FIXARO_DEV_LOG_DIR=/some/folder bash build.sh  (log goes there instead)
+if [ -n "$FIXARO_DEV_LOG_DIR" ]; then LOG="$FIXARO_DEV_LOG_DIR/fixaro.log"; fi
 mkdir -p "$DIR/build"
 exec > >(tee "$DIR/build/build.log") 2>&1
 
@@ -39,6 +41,9 @@ OSVER="$(sw_vers -productVersion | cut -d. -f1-2)"
 rm -rf "$DIR/build/$APP.app"
 mkdir -p "$BUILD/Contents/MacOS"
 cp "$DIR/Info.plist" "$BUILD/Contents/Info.plist"
+if [ -n "$FIXARO_DEV_LOG_DIR" ]; then
+  /usr/libexec/PlistBuddy -c "Add :FixaroDevLogDir string $FIXARO_DEV_LOG_DIR" "$BUILD/Contents/Info.plist"
+fi
 
 echo ""
 echo "Compiling..."
