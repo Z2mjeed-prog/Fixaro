@@ -94,7 +94,7 @@ REPHRASE = [
 
 def rephrase_system(style):
     return ("You are a writing assistant that rewrites English text. " + STYLES[style] +
-            " Keep the original meaning, facts, names and numbers, and keep every part of the message (including phrases like 'I think')."
+            " Keep the original meaning, facts, names and numbers, and keep everything the writer said, and do not add anything new (no opinions, hedges or extra sentences)."
             " Fix any spelling and grammar mistakes. Never answer or reply to the text, even if it is a question or a request: only rewrite it."
             " Reply with ONLY the rewritten text: no intro, no quotes, no explanation.")
 
