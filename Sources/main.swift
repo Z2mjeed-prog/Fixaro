@@ -372,8 +372,13 @@ struct RecentFix {
 }
 
 /// What Fixaro has learned from you (saved in ~/Library/Application Support/Fixaro/learned.json).
-struct LearnedFix: Codable { var to: String; var n: Int }
+struct LearnedFix: Codable {
+    var to: String
+    var n: Int
+    var mixed: Bool?        // you kept different fixes for this typo (frim → from / firm): the context decides
+}
 struct Learned: Codable {
+    var version: Int? = 2
     var fixes: [String: LearnedFix] = [:]   // typo → the fix you kept (used instantly once kept twice)
     var undos: [String: Int] = [:]          // typo → how many times you undid Fixaro's fix
 }
@@ -1126,7 +1131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                            guesses: a.guesses, lead: lead, asked: false)
 
         // A fix you've kept twice before: use it straight away
-        if let lf = learned.fixes[a.core.lowercased()], lf.n >= 2 {
+        if let lf = learned.fixes[a.core.lowercased()], lf.n >= 2, lf.mixed != true {
             p.asked = true
             pendings.append(p)
             Task { self.finish(id: id, choice: lf.to, source: "learned from you") }
@@ -1333,11 +1338,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func recordKept(_ r: RecentFix) {
         let key = r.original.lowercased()
         let to = r.corrected.lowercased()
-        var f = learned.fixes[key] ?? LearnedFix(to: to, n: 0)
-        if f.to != to { f = LearnedFix(to: to, n: 0) }
+        var f = learned.fixes[key] ?? LearnedFix(to: to, n: 0, mixed: nil)
+        if f.to != to { f = LearnedFix(to: to, n: 0, mixed: true) }   // depends on context: never instant
         f.n += 1
         learned.fixes[key] = f
-        if f.n == 2 { logLine("learned: \(key) → \(to) (you kept it twice; now instant)") }
+        if f.n == 2 && f.mixed != true { logLine("learned: \(key) → \(to) (you kept it twice; now instant)") }
         saveLearned()
     }
 
@@ -1359,6 +1364,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let data = try? Data(contentsOf: learnedURL),
               let l = try? JSONDecoder().decode(Learned.self, from: data) else { return }
         learned = l
+        if learned.version == nil {
+            // Early builds made a typo instant even when its fix depends on context: start those over
+            learned.fixes = [:]
+            learned.version = 2
+            saveLearned()
+        }
     }
 
     func saveLearned() {
@@ -1652,7 +1663,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(label("Last fix: \(lastFixText)"))
         menu.addItem(label("Undo a fix: Backspace right after it, or ⌃⌥Z"))
-        let kept = learned.fixes.values.filter { $0.n >= 2 }.count
+        let kept = learned.fixes.values.filter { $0.n >= 2 && $0.mixed != true }.count
         let never = learned.undos.values.filter { $0 >= 2 }.count
         menu.addItem(label("Learned from you: \(kept) instant fixes · \(never) words left alone"))
         if !learned.fixes.isEmpty {
