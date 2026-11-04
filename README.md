@@ -6,6 +6,10 @@ Fixaro fixes typos as you type, in any app, using an AI model that runs on your 
 
 > A free, open-source, fully local alternative to cloud writing assistants.
 
+<p align="center">
+  <img src="docs/demo-context.gif" width="800" alt="Typing 'I got the money frim the bank': Fixaro changes frim to from. Then 'The new frim policy': the same typo becomes firm, because Fixaro reads the words around it.">
+</p>
+
 ## What it does
 
 - **Fixes typos as you type, everywhere:** Mail, Notes, Slack, Chrome, WhatsApp, and more.
@@ -13,6 +17,8 @@ Fixaro fixes typos as you type, in any app, using an AI model that runs on your 
   - "the money **frim** the bank" → **from**
   - "the new **frim** policy" → **firm**
 - **Rephrases on demand.** Select text, press **⌃⌥R** (Control-Option-R), and it's rewritten in place. Styles: Natural, Professional, Shorter, Friendly.
+
+  <img src="docs/demo-rephrase.gif" width="700" alt="The sentence 'we was to busy to finish it yesterday' is selected, Control-Option-R is pressed, and it becomes 'We were too busy to finish it yesterday.'">
 - **Learns from you.**
   - Undo the same fix twice, and Fixaro leaves that word alone for good.
   - Keep a fix twice, and it's applied instantly next time.
@@ -132,6 +138,11 @@ To test the models on your own Mac, run `python3 tools/bench.py`. It compares ev
 4. Remove Fixaro from System Settings → Privacy & Security → Accessibility.
 
 ## How it works
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/how-it-works-dark.png">
+  <img src="docs/how-it-works-light.png" width="900" alt="Fixaro reads your keys, asks the Mac's spell checker whether a word is wrong, asks a local AI model which fix fits the words around it, and swaps the word in. Everything happens on your Mac; nothing is sent to the internet.">
+</picture>
 
 Fixaro is a single Swift file (`Sources/main.swift`): a menu bar app with no Xcode project.
 
