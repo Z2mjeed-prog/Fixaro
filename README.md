@@ -120,12 +120,13 @@ What that means in practice:
 | Model | Size | Best for | Typos fixed | Need the sentence | Time per word | Rephrasing |
 |---|---|---|---|---|---|---|
 | **qwen3.5:4b** | 4.0 GB | **Word fixes** (default) | **46/46** | **28/28** | 0.21 s | Good, but sometimes adds small details |
-| **gemma4:e4b** | 9.6 GB | **Rephrasing** on 18 GB+ | 45/46 | 27/28 | 0.36 s | **Best:** the only one that really changes the tone |
+| **gemma4:e4b** | 9.6 GB | **Rephrasing** on 18 GB+ | 45/46 | 27/28 | 0.36 s | **Best:** changes the tone well and sticks to your message |
+| qwen3.5:9b | 7.6 GB | Rephrasing, if you want to save 2 GB | 46/46 | 28/28 | 0.30 s | Very good, but once added a sentence of its own |
 | **nemotron-3-nano:4b** | 2.9 GB | **Word fixes on 8 GB Macs** | 43/46 | 25/28 | 0.20 s | Good, stays close to your words |
 | qwen3.5:2b | 3.1 GB | Fastest | 39/46 | 22/28 | 0.12 s | OK, sometimes adds details |
 | granite4.2:3b | 2.2 GB | Smallest | 39/46 | 21/28 | 0.15 s | OK, one grammar slip |
 
-All five fixed nearly every easy typo, kept every name and number when rephrasing, and rewrote questions instead of answering them. The differences show up when the sentence matters, and in how well each one writes.
+All six fixed nearly every easy typo, kept every name and number when rephrasing, and rewrote questions instead of answering them. The differences show up when the sentence matters, and in how well each one writes.
 
 **Worth trying** (not tested with Fixaro yet):
 
@@ -135,7 +136,6 @@ All five fixed nearly every easy typo, kept every name and number when rephrasin
 | `ministral-3:3b` | 3.0 GB | Word fixes | Small model from Mistral |
 | `phi4-mini` | 2.5 GB | Word fixes | Older, well-known |
 | `llama3.2:3b` | 2.0 GB | Word fixes | Older, well-known |
-| `qwen3.5:9b` | 6.6 GB | Rephrasing on 18 GB+ | Bigger Qwen, better writing |
 | `gemma4:12b` | 7.7 GB | Rephrasing on 18 GB+ | Bigger Gemma, better writing |
 
 If you have **32 GB or more**, larger models (like `gemma4:26b` or `qwen3.6:27b`) can write even better rephrases. Keep them for rephrasing, and a small model for word fixes.
