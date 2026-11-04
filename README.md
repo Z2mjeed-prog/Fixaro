@@ -1,31 +1,45 @@
 # Fixaro
 
-**Rewrite or fix any text, in any app on your Mac, with AI that never leaves your computer.**
+**Private grammar fixing and rewriting for every app on your Mac. Your text never leaves your computer.**
 
-Select some text, press **⌃⌥R**, and pick a style: Professional, Friendly, Shorter, or one you made yourself. Fixaro rewrites it in place, in Mail, Slack, Chrome, Notes or any other app. While you type, it also fixes typos, reading the words around each one to pick the right fix. Everything runs on your own Mac.
+Online writing assistants send what you write to their servers. Fixaro doesn't: its AI runs on your own Mac, so you can use it on confidential emails, client details, contracts and reports. Select text, press **⌃⌥R**, and get correct grammar in the style you choose. While you type, it fixes typos too.
 
 <p align="center">
   <img src="docs/demo-email.gif" width="800" alt="A casual email draft in Apple Mail, 'Hey, can you send me the sales numbers by tomorrow? ... thanks', is selected, Control-Option-R is pressed, and with the Professional style it becomes 'Could you please send me the sales numbers by tomorrow? I require them for the meeting on Thursday. Please let me know if this presents any issues. Thank you.'">
 </p>
 
-## Rephrase anything
+## Private by design
 
-1. **Select text** in any app.
+- **Your text stays on your Mac.** The AI runs locally through [Ollama](https://ollama.com). No account, no cloud, no tracking, and nothing is sent anywhere.
+- **Works offline.** Once your model is downloaded, Fixaro works with the internet switched off.
+- **Never sees passwords.** macOS hides password fields from all apps, Fixaro included.
+- **Saves nothing you write.** It keeps only your word list, your styles, and a log of the typos it fixed (`~/Library/Application Support/Fixaro/`, `~/Library/Logs/Fixaro.log`). Rephrased text is never saved.
+- **Open source.** Anyone can read the code and check exactly what it does.
+
+Good to know: Fixaro needs **Accessibility** permission, the only way a Mac app can read and replace text in other apps. To rephrase, it copies your selection through the clipboard and puts your clipboard back afterwards, so a clipboard manager may keep a copy.
+
+## Better grammar with one shortcut
+
+1. **Select text** in any app: Mail, Slack, Chrome, Notes…
 2. **Press ⌃⌥R** (Control-Option-R). A menu of styles pops up next to your text.
 3. **Pick a style** with its number key or a click. **Return** uses the one you used last; **Esc** cancels.
 
-The text is rewritten in place, and **⌘Z** brings back the original.
+Fixaro corrects grammar, spelling and punctuation, rewrites the text in your chosen style, and puts it right back in place. **⌘Z** brings back the original.
+
+<p align="center">
+  <img src="docs/demo-rephrase.gif" width="700" alt="The sentence 'we was to busy to finish it yesterday' is selected, Control-Option-R is pressed, and it becomes 'We were too busy to finish it yesterday.'">
+</p>
 
 | Style | You wrote | Fixaro wrote |
 |---|---|---|
-| **Natural** | i think we should of finished the report yesterday but we was to busy with other stuff | I think we should have finished the report yesterday, but we were too busy with other things. |
+| **Natural**: a grammar check that keeps your tone | i think we should of finished the report yesterday but we was to busy with other stuff | I think we should have finished the report yesterday, but we were too busy with other things. |
 | **Professional** | hey can u send me the Q3 numbers by tmrw? need them for the 10am meeting with Sara | Could you please send me the Q3 numbers by tomorrow? I need them for the 10:00 AM meeting with Sara. |
 | **Shorter** | I just wanted to reach out and let you know that I will not be able to attend the meeting that is scheduled for Thursday because I have a doctor's appointment that I cannot move. | I cannot attend Thursday's meeting due to an unavoidable doctor's appointment. |
 | **Friendly** | Your payment of 450 SAR is overdue. Pay it by June 5 or your account will be suspended. | Just a friendly heads-up that your payment of 450 SAR is a little overdue. Could you please take care of it by June 5th so your account stays active? |
 
 <sub>Real results from gemma4:e4b on a Mac with 18 GB of memory, about a second each.</sub>
 
-Fixaro keeps your names, numbers and meaning, fixes spelling and grammar on the way, and won't answer your text: a question stays a question.
+It keeps your names, numbers and meaning, and won't answer your text: a question stays a question.
 
 ### Make your own styles
 
@@ -42,7 +56,7 @@ To change or delete styles, choose **Edit my styles…**. They're kept in one te
 
 Prefer one style every time, with no menu? Pick it under **Rephrase style**.
 
-### Only want rephrasing?
+### Only want the grammar and rewriting?
 
 Untick **Fix typos as I type** in the menu bar. ⌃⌥R keeps working, Fixaro leaves your typing alone, and only the rephrase model is loaded.
 
@@ -56,13 +70,6 @@ Untick **Fix typos as I type** in the menu bar. ⌃⌥R keeps working, Fixaro le
 - **Understands context.** "the money **frim** the bank" → **from**, but "the new **frim** policy" → **firm**.
 - **Learns from you.** Undo the same fix twice and Fixaro leaves that word alone; keep a fix twice and it's applied instantly next time.
 - **Easy undo.** Press Backspace right after a fix, or **⌃⌥Z**.
-
-## Privacy
-
-- **Nothing leaves your Mac.** The AI runs locally through [Ollama](https://ollama.com). No account, no cloud, no tracking.
-- **Passwords are hidden from it.** macOS hides password fields from all apps, Fixaro included.
-- **It needs Accessibility permission,** the only way a Mac app can see what you type and replace a word in another app.
-- **What's saved:** your word list, styles and learned fixes (`~/Library/Application Support/Fixaro/`) and a log (`~/Library/Logs/Fixaro.log`). Delete them any time.
 
 ## Install
 
