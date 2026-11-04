@@ -1,9 +1,12 @@
 name: Release
 
-# Push a tag like v1.1.0 and GitHub builds Fixaro and attaches Fixaro-1.1.0.dmg and .zip to a release.
+# Publish a release (or push a tag) like v1.1.0, and GitHub builds Fixaro and attaches
+# Fixaro-1.1.0.dmg and .zip to it.
 on:
   push:
     tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -30,9 +33,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip \
-            --title "Fixaro ${GITHUB_REF_NAME#v}" \
-            --notes "Download **Fixaro-${GITHUB_REF_NAME#v}.dmg**, open it, and drag Fixaro into Applications. See the [install steps](https://github.com/${{ github.repository }}#install)."
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip \
+              --title "Fixaro ${GITHUB_REF_NAME#v}" \
+              --notes "Download **Fixaro-${GITHUB_REF_NAME#v}.dmg**, open it, and drag Fixaro into Applications. See the [install steps](https://github.com/${{ github.repository }}#install)."
+          fi
 
       - name: Keep the build (manual runs)
         if: "!startsWith(github.ref, 'refs/tags/v')"
