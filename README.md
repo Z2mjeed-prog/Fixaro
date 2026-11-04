@@ -39,7 +39,7 @@ Good to know: Fixaro needs **Accessibility** permission, the only way a Mac app 
 
 Fixaro corrects grammar, spelling and punctuation, rewrites the text in your chosen style, and puts it right back in place. **⌘Z** brings back the original.
 
-**Faster than a chatbot.** With ChatGPT or Claude, you copy your text, switch apps, paste it, ask for a rewrite, wait, copy the answer, switch back and paste it in. With Fixaro you select the text, press ⌃⌥R, and the rewrite appears right where you're typing, in seconds.
+**Faster than a chatbot.** With ChatGPT or Claude, you copy your text, switch apps, paste it, ask for a rewrite, wait, copy the answer, switch back and paste it in. With Fixaro you select the text, press ⌃⌥R, and the rewrite appears right where you're typing, in seconds, without your text leaving your Mac.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/how-rephrase-works-dark.png">
