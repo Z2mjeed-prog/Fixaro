@@ -407,7 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
     }
     /// Off = rephrase only: ⌃⌥R still works, but typing is left alone and the word-fix model isn't loaded
     var fixTyping: Bool {
-        get { defaults.object(forKey: "fixTyping") as? Bool ?? true }
+        get { defaults.object(forKey: "fixTyping") as? Bool ?? false }    // off until you turn it on
         set { defaults.set(newValue, forKey: "fixTyping") }
     }
     var engineChoice: EngineChoice {
@@ -1929,7 +1929,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         let ready = AXIsProcessTrusted() && tap != nil
 
         // Name and state
-        let state = !ready ? "needs permission" : (!enabled ? "paused" : (fixTyping ? "on" : "on · rephrase only"))
+        let state = !ready ? "needs permission" : (!enabled ? "paused" : (fixTyping ? "on · fixing typos" : "on"))
         let head = NSMutableAttributedString(string: "Fixaro", attributes: [.font: NSFont.boldSystemFont(ofSize: 13)])
         head.append(NSAttributedString(string: "  \(state)", attributes: [.font: NSFont.systemFont(ofSize: 13),
                                                                           .foregroundColor: NSColor.secondaryLabelColor]))
@@ -2148,7 +2148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         icon.heightAnchor.constraint(equalToConstant: 64).isActive = true
         let name = NSTextField(labelWithString: "Fixaro")
         name.font = .systemFont(ofSize: 24, weight: .bold)
-        let tagline = NSTextField(wrappingLabelWithString: "Fixes typos as you type and rewrites the text you select, with an AI that runs on this Mac. Nothing you write leaves your computer.")
+        let tagline = NSTextField(wrappingLabelWithString: "Fixes the grammar of the text you select and rewrites it, with an AI that runs on this Mac. Nothing you write leaves your computer.")
         tagline.textColor = .secondaryLabelColor
         tagline.preferredMaxLayoutWidth = 340
         let titles = NSStackView(views: [name, tagline])
@@ -2168,7 +2168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         keys.font = .boldSystemFont(ofSize: 13)
         let k1 = NSTextField(labelWithString: "⌃⌥R    Rephrase the selected text in your usual style")
         let k3 = NSTextField(labelWithString: "⌃⌥S    Pick a style, or type how to rewrite it")
-        let k2 = NSTextField(labelWithString: "⌃⌥Z    Undo the last typo fix (or Backspace right after it)")
+        let k2 = NSTextField(labelWithString: "Typo fixing as you type is off. Turn it on in the menu: Fix typos as I type")
         for k in [k1, k3, k2] { k.font = .systemFont(ofSize: 12); k.textColor = .secondaryLabelColor }
         let shortcuts = NSStackView(views: [keys, k1, k3, k2])
         shortcuts.orientation = .vertical
@@ -2364,7 +2364,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
     @objc func toggleFixTyping() {
         fixTyping.toggle()
         reset()
-        logLine(fixTyping ? "Typo fixing on" : "Typo fixing off: rephrase only")
+        logLine(fixTyping ? "Typo fixing on" : "Typo fixing off")
         if fixTyping { Task { await self.warmUp() } }
     }
     @objc func selectStyle(_ sender: NSMenuItem) {
