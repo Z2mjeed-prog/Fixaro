@@ -1,0 +1,5 @@
+build/
+*.log
+tools/bench.txt
+.DS_Store
+*.bak
