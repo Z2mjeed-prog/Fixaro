@@ -6,7 +6,7 @@
 
 <p align="center"><b>Private grammar fixing and rewriting for every app on your Mac.<br>Your text never leaves your computer.</b></p>
 
-Online writing assistants send what you write to their servers. Fixaro doesn't: its AI runs on your own Mac, so you can use it on confidential emails, client details, contracts and reports. Select text, press **⌃⌥R**, and get correct grammar in the style you choose. While you type, it fixes typos too.
+Online writing assistants send what you write to their servers. Fixaro doesn't: its AI runs on your own Mac, so you can use it on confidential emails, client details, contracts and reports. Select text, press **⌃⌥R**, and get correct grammar in your usual style. Press **⌃⌥S** instead to pick a style or say exactly how you want it rewritten. While you type, it fixes typos too.
 
 <p align="center">
   <img src="docs/demo-email.gif" width="800" alt="A casual email draft in Apple Mail, 'Hey, can you send me the sales numbers by tomorrow? ... thanks', is selected, Control-Option-R is pressed, and with the Professional style it becomes 'Could you please send me the sales numbers by tomorrow? I require them for the meeting on Thursday. Please let me know if this presents any issues. Thank you.'">
@@ -38,16 +38,19 @@ Good to know: Fixaro needs **Accessibility** permission, the only way a Mac app 
 ## Better grammar with one shortcut
 
 1. **Select text** in any app: Mail, Slack, Chrome, Notes…
-2. **Press ⌃⌥R** (Control-Option-R). A menu of styles pops up next to your text.
-3. **Pick a style** with its number key or a click. **Return** uses the one you used last; **Esc** cancels.
+2. **Press ⌃⌥R** (Control-Option-R). Fixaro rewrites it in your usual style.
+3. **Or press ⌃⌥S** (Control-Option-S) for a popup next to your text:
+   - **Type how you want it**, for example *more formal, and ask for a reply by Sunday*, and press **Return**.
+   - **Or pick a style** with its number key or a click.
+   - **Return** on an empty box uses your usual style. **Esc** cancels.
 
-Fixaro corrects grammar, spelling and punctuation, rewrites the text in your chosen style, and puts it right back in place. **⌘Z** brings back the original.
+Fixaro corrects grammar, spelling and punctuation, rewrites the text, and puts it right back in place. **⌘Z** brings back the original.
 
 **Faster than a chatbot.** With ChatGPT or Claude, you copy your text, switch apps, paste it, ask for a rewrite, wait, copy the answer, switch back and paste it in. With Fixaro you select the text, press ⌃⌥R, and the rewrite appears right where you're typing, in seconds, without your text leaving your Mac.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/how-rephrase-works-dark.png">
-  <img src="docs/how-rephrase-works-light.png" width="900" alt="How Fixaro rephrases: you select text in any app and press Control-Option-R; you pick a style; Fixaro sends your text and the style to an AI model running on your Mac; the rewrite is pasted back in place and your clipboard is restored. Nothing is sent to the internet.">
+  <img src="docs/how-rephrase-works-light.png" width="900" alt="How Fixaro rephrases: you select text in any app and press Control-Option-R for your usual style, or Control-Option-S to pick a style or type how to rewrite it; Fixaro sends your text and the style to an AI model running on your Mac; the rewrite is pasted back in place and your clipboard is restored. Nothing is sent to the internet.">
 </picture>
 
 | Style | You wrote | Fixaro wrote |
@@ -63,7 +66,7 @@ It keeps your names, numbers and meaning, and won't answer your text: a question
 
 ### Make your own styles
 
-Menu bar icon → **Rephrase style → Add a style…**. Give it a name and say how it should sound. It shows up in the ⌃⌥R menu straight away. Some ideas:
+Menu bar icon → **Rephrase style → Add a style…**. Give it a name and say how it should sound. It shows up in the ⌃⌥S popup straight away. Some ideas:
 
 | Name | How it should sound |
 |---|---|
@@ -73,7 +76,7 @@ Menu bar icon → **Rephrase style → Add a style…**. Give it a name and say 
 
 To change or delete styles, choose **Edit my styles…**. They're kept in one text file, one style per line: `Name: how it should sound`.
 
-Prefer one style every time, with no menu? Pick it under **Rephrase style**.
+To change your usual style (the one ⌃⌥R uses), pick it under **Rephrase style**.
 
 ### Only want the grammar and rewriting?
 
@@ -154,7 +157,8 @@ Want to try others? See the [model test results](docs/MODELS.md).
 |---|---|
 | Fix typos | Just type. Fixes happen after Space or Enter |
 | Undo a fix | Backspace right after it, or **⌃⌥Z** |
-| Rephrase text | Select it, press **⌃⌥R**, pick a style |
+| Rephrase text | Select it, press **⌃⌥R** |
+| Choose a style, or say how to rewrite it | Select it, press **⌃⌥S** |
 | Add your own style | Menu → **Rephrase style** → **Add a style…** |
 | Change models | Menu → **Word-fix model** / **Rephrase model** |
 | Never correct a word | Menu → **Edit word list…** |
