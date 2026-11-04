@@ -22,6 +22,13 @@ Client details, account numbers, salaries: rewrite them without worrying, becaus
 - **Saves nothing you write.** It keeps only your word list, your styles, and a log of the typos it fixed (`~/Library/Application Support/Fixaro/`, `~/Library/Logs/Fixaro.log`). Rephrased text is never saved.
 - **Open source.** Anyone can read the code and check exactly what it does.
 
+| | Fixaro | Online writing assistants |
+|---|---|---|
+| **Where your text goes** | Stays on your Mac | Sent to their servers |
+| **Account** | None | Usually required |
+| **Works offline** | Yes | No |
+| **Price** | Free and open source | Often a monthly subscription |
+
 Good to know: Fixaro needs **Accessibility** permission, the only way a Mac app can read and replace text in other apps. To rephrase, it copies your selection through the clipboard and puts your clipboard back afterwards, so a clipboard manager may keep a copy.
 
 ## Better grammar with one shortcut
