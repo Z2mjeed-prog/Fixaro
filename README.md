@@ -39,9 +39,12 @@ Good to know: Fixaro needs **Accessibility** permission, the only way a Mac app 
 
 Fixaro corrects grammar, spelling and punctuation, rewrites the text in your chosen style, and puts it right back in place. **⌘Z** brings back the original.
 
-<p align="center">
-  <img src="docs/demo-rephrase.gif" width="700" alt="The sentence 'we was to busy to finish it yesterday' is selected, Control-Option-R is pressed, and it becomes 'We were too busy to finish it yesterday.'">
-</p>
+**Faster than a chatbot.** With ChatGPT or Claude, you copy your text, switch apps, paste it, ask for a rewrite, wait, copy the answer, switch back and paste it in. With Fixaro you select the text, press ⌃⌥R, and the rewrite appears right where you're typing, in seconds.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/how-rephrase-works-dark.png">
+  <img src="docs/how-rephrase-works-light.png" width="900" alt="How Fixaro rephrases: you select text in any app and press Control-Option-R; you pick a style; Fixaro sends your text and the style to an AI model running on your Mac; the rewrite is pasted back in place and your clipboard is restored. Nothing is sent to the internet.">
+</picture>
 
 | Style | You wrote | Fixaro wrote |
 |---|---|---|
@@ -135,6 +138,8 @@ Terminal and code editors are off by default. Fixaro also works with LM Studio, 
 Quit Fixaro from its menu, delete `~/Applications/Fixaro.app`, and remove it from **Privacy & Security → Accessibility**. Optionally delete its data folders listed under Privacy.
 
 ## How it works
+
+Rephrasing is pictured [above](#better-grammar-with-one-shortcut). Typo fixing works like this:
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/how-it-works-dark.png">
