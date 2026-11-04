@@ -39,7 +39,8 @@ fi
 
 OSVER="$(sw_vers -productVersion | cut -d. -f1-2)"
 rm -rf "$DIR/build/$APP.app"
-mkdir -p "$BUILD/Contents/MacOS"
+mkdir -p "$BUILD/Contents/MacOS" "$BUILD/Contents/Resources"
+cp "$DIR"/Resources/* "$BUILD/Contents/Resources/"
 cp "$DIR/Info.plist" "$BUILD/Contents/Info.plist"
 if [ -n "$FIXARO_DEV_LOG_DIR" ]; then
   /usr/libexec/PlistBuddy -c "Add :FixaroDevLogDir string $FIXARO_DEV_LOG_DIR" "$BUILD/Contents/Info.plist"
@@ -66,7 +67,7 @@ tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 || true
 open "$DEST"
 
 echo ""
-echo ">> NEXT: macOS will ask to allow Fixaro. Click 'Open System Settings' and turn Fixaro ON"
+echo ">> NEXT: Fixaro's welcome window opens. Click 'Allow…' and turn Fixaro ON"
 echo ">>       under Privacy & Security > Accessibility."
 echo ""
 echo "Waiting for the app to start..."

@@ -405,6 +405,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         get { defaults.object(forKey: "enabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "enabled"); updateIcon() }
     }
+    /// Off = rephrase only: ⌃⌥R still works, but typing is left alone and the word-fix model isn't loaded
+    var fixTyping: Bool {
+        get { defaults.object(forKey: "fixTyping") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "fixTyping") }
+    }
     var engineChoice: EngineChoice {
         get { EngineChoice(rawValue: defaults.string(forKey: "engine") ?? "") ?? .auto }
         set { defaults.set(newValue.rawValue, forKey: "engine"); resolveEngine() }
@@ -490,8 +495,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func startWhenTrusted() {
-        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-        if AXIsProcessTrustedWithOptions(opts) { installTap(); return }
+        if AXIsProcessTrusted() {
+            installTap()
+            if !welcomed { showWelcome() }
+            return
+        }
+        showWelcome()                                         // explains the permission, with a button to allow it
         logLine("Waiting for Accessibility permission…")
         updateIcon()
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] t in
@@ -573,6 +582,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func warmUp() async {
+        guard fixTyping else { return }                       // rephrase only: no need to load the word-fix model
         let sample = makePrompt(word: "helo", before: "I said ", after: " to her", guesses: ["hello", "help", "hero"])
         let start = Date()
         switch activeEngine {
@@ -670,6 +680,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             default: break
             }
         }
+        if !fixTyping { return false }                        // rephrase only: leave typing alone
         if flags.contains(.maskCommand) || flags.contains(.maskControl) { reset(); return false }
 
         let keycode = event.getIntegerValueField(.keyboardEventKeycode)
@@ -1584,6 +1595,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let rephraseModel: String? = ollamaModels.isEmpty ? nil : (rephraseModelSetting ?? ollamaModel)
         guard useApple || rephraseModel != nil else {
             NSSound.beep()
+            showBubble("Start Ollama first, then try again", busy: false, near: nil)
+            hideBubble(after: 3)
             lastRephraseText = "needs Ollama running"
             logLine("rephrase: no AI engine available")
             return
@@ -1609,6 +1622,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let original = text, !original.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             restorePasteboard(pb, saved)
             NSSound.beep()
+            showBubble("Select some text first, then press ⌃⌥R", busy: false, near: nil)
+            hideBubble(after: 3)
             lastRephraseText = "couldn't copy the selection"
             logLine("rephrase: copy failed or nothing selected (app: \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"))")
             return
@@ -1625,6 +1640,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             chosen = style(for: key)
             rephraseStyle = key
         }
+        let shortTitle = chosen.title.components(separatedBy: " (").first ?? chosen.title
+        showBubble("Rewriting · \(shortTitle)…", busy: true, near: selectionPoint())
         let styleLine = chosen.instruction
         let system = "You are a writing assistant that rewrites English text. \(styleLine) Keep the original meaning, facts, names and numbers, and keep every part of the message (including phrases like 'I think'). Fix any spelling and grammar mistakes. Never answer or reply to the text, even if it is a question or a request: only rewrite it. Reply with ONLY the rewritten text: no intro, no quotes, no explanation."
         let prompt = "Rewrite this text:\n\"\"\"\n\(original)\n\"\"\""
@@ -1640,6 +1657,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let cleaned = raw.flatMap({ cleanRephrase($0, original: original) }) else {
             restorePasteboard(pb, saved)
             NSSound.beep()
+            showBubble("Couldn't rewrite it. Is Ollama running?", busy: false, near: nil)
+            hideBubble(after: 3)
             lastRephraseText = "model gave no usable answer"
             logLine("rephrase: no usable answer")
             return
@@ -1650,6 +1669,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         pb.setString(cleaned, forType: .string)
         await Typist.waitForModifierRelease()
         Typist.combo(9, .maskCommand)                                   // ⌘V
+        hideBubble()
         try? await Task.sleep(nanoseconds: 400_000_000)
         restorePasteboard(pb, saved)
         let ms = Int(Date().timeIntervalSince(started) * 1000)
@@ -1744,8 +1764,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: Menu bar
 
     func updateIcon(symbol: String? = nil) {
-        let name = symbol ?? (tap == nil ? "exclamationmark.triangle" : (enabled ? "text.badge.checkmark" : "pause.circle"))
-        let img = NSImage(systemSymbolName: name, accessibilityDescription: "Fixaro")
+        let name = symbol ?? (tap == nil ? "exclamationmark.triangle" : (enabled ? "logo" : "pause.circle"))
+        // The Fixaro "F" when all is well; system symbols for paused, busy or needing permission
+        let img = name == "logo" ? (Bundle.main.image(forResource: "MenuIcon") ?? NSImage(systemSymbolName: "text.badge.checkmark", accessibilityDescription: "Fixaro"))
+                                 : NSImage(systemSymbolName: name, accessibilityDescription: "Fixaro")
         img?.isTemplate = true
         statusItem?.button?.image = img
     }
@@ -1770,40 +1792,109 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return i
     }
 
+    func symbol(_ name: String) -> NSImage? {
+        NSImage(systemSymbolName: name, accessibilityDescription: nil)
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         reloadWordList()
         if Date().timeIntervalSince(lastModelRefresh) > 5 { Task { await self.refreshModelList() } }
         menu.removeAllItems()
-        let trusted = AXIsProcessTrusted()
+        let ready = AXIsProcessTrusted() && tap != nil
 
-        menu.addItem(label(!trusted || tap == nil ? "Fixaro needs Accessibility permission"
-                                                   : (enabled ? "Fixaro is on" : "Fixaro is paused")))
-        if !trusted || tap == nil {
-            menu.addItem(item("Open Accessibility Settings…", #selector(openAXSettings)))
+        // Name and state
+        let state = !ready ? "needs permission" : (!enabled ? "paused" : (fixTyping ? "on" : "on · rephrase only"))
+        let head = NSMutableAttributedString(string: "Fixaro", attributes: [.font: NSFont.boldSystemFont(ofSize: 13)])
+        head.append(NSAttributedString(string: "  \(state)", attributes: [.font: NSFont.systemFont(ofSize: 13),
+                                                                          .foregroundColor: NSColor.secondaryLabelColor]))
+        let header = NSMenuItem(title: "Fixaro \(state)", action: nil, keyEquivalent: "")
+        header.attributedTitle = head
+        header.isEnabled = false
+        menu.addItem(header)
+        if !ready {
+            let allow = item("Allow Fixaro in Accessibility…", #selector(showWelcome))
+            allow.image = symbol("exclamationmark.triangle")
+            menu.addItem(allow)
         }
-        menu.addItem(item(enabled ? "Pause" : "Resume", #selector(toggleEnabled)))
         menu.addItem(.separator())
 
-        menu.addItem(label("Engine: \(engineLabel(activeEngine))"))
-        let engineMenu = NSMenu()
-        engineMenu.autoenablesItems = false
-        let choices: [(EngineChoice, String, Bool)] = [
-            (.auto, "Auto (best available)", true),
-            (.apple, "Apple Intelligence" + (appleOK ? "" : " (not available)"), appleOK),
-            (.ollama, Ollama.displayName + (ollamaModels.isEmpty ? " (not running)" : ""), !ollamaModels.isEmpty),
-            (.spell, "Spell checker only (fastest)", true)
-        ]
-        for (c, title, ok) in choices {
-            let it = item(title, #selector(selectEngine(_:)))
-            it.representedObject = c.rawValue
-            it.state = engineChoice == c ? .on : .off
-            it.isEnabled = ok
-            engineMenu.addItem(it)
-        }
-        let engineItem = NSMenuItem(title: "Choose engine", action: nil, keyEquivalent: "")
-        engineItem.submenu = engineMenu
-        menu.addItem(engineItem)
+        // Rephrase
+        let reph = item("Rephrase selected text", #selector(rephraseFromMenu))
+        reph.keyEquivalent = "r"
+        reph.keyEquivalentModifierMask = [.control, .option]
+        reph.image = symbol("wand.and.stars")
+        menu.addItem(reph)
+        menu.addItem(styleMenuItem())
 
+        // Typos
+        let ft = item("Fix typos as I type", #selector(toggleFixTyping))
+        ft.state = fixTyping ? .on : .off
+        menu.addItem(ft)
+        if fixTyping {
+            let undo = item("Undo last fix", #selector(undoFromMenu))
+            undo.keyEquivalent = "z"
+            undo.keyEquivalentModifierMask = [.control, .option]
+            menu.addItem(undo)
+        }
+        if let u = lastUndone {
+            menu.addItem(item("Never correct “\(u)”", #selector(addLastUndone)))
+        }
+        if let front = NSWorkspace.shared.frontmostApplication, let bid = front.bundleIdentifier,
+           bid != Bundle.main.bundleIdentifier {
+            let name = front.localizedName ?? bid
+            let it = item(excludedApps.contains(bid) ? "Turn on in \(name)" : "Turn off in \(name)", #selector(toggleApp(_:)))
+            it.representedObject = bid
+            menu.addItem(it)
+        }
+        menu.addItem(.separator())
+
+        // What happened last
+        if fixTyping { menu.addItem(label("Last fix: \(lastFixText)")) }
+        menu.addItem(label("Last rephrase: \(lastRephraseText)"))
+        menu.addItem(.separator())
+
+        let settings = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+        settings.image = symbol("gearshape")
+        settings.submenu = settingsMenu()
+        menu.addItem(settings)
+        let pause = item(enabled ? "Pause Fixaro" : "Resume Fixaro", #selector(toggleEnabled))
+        pause.image = symbol(enabled ? "pause.circle" : "play.circle")
+        menu.addItem(pause)
+        let q = item("Quit Fixaro", #selector(quit))
+        q.keyEquivalent = "q"
+        menu.addItem(q)
+    }
+
+    /// Rephrase style: ask each time, or always use one; add and edit your own.
+    func styleMenuItem() -> NSMenuItem {
+        let sm = NSMenu()
+        let ask = item("Ask each time (a menu pops up)", #selector(selectAskStyle))
+        ask.state = rephraseAsk ? .on : .off
+        sm.addItem(ask)
+        sm.addItem(.separator())
+        sm.addItem(NSMenuItem.sectionHeader(title: "Or always use"))
+        for (i, s) in allStyles().enumerated() {
+            if i == builtInStyles.count { sm.addItem(.separator()) }
+            let it = item(s.title, #selector(selectStyle(_:)))
+            it.representedObject = s.key
+            it.state = !rephraseAsk && rephraseStyle == s.key ? .on : .off
+            sm.addItem(it)
+        }
+        sm.addItem(.separator())
+        sm.addItem(item("Add a style…", #selector(addStyle)))
+        sm.addItem(item("Edit my styles…", #selector(editStyles)))
+        let title = rephraseAsk ? "Rephrase style: ask each time" : "Rephrase style: \(style(for: rephraseStyle).title)"
+        let si = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        si.submenu = sm
+        return si
+    }
+
+    /// Everything you set once: models, AI app, apps, word list, startup.
+    func settingsMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        menu.addItem(NSMenuItem.sectionHeader(title: "AI"))
         if !ollamaModels.isEmpty {
             let mm = NSMenu()
             for m in ollamaModels {
@@ -1813,7 +1904,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 it.state = m.name == ollamaModel ? .on : .off
                 mm.addItem(it)
             }
-            let mi = NSMenuItem(title: "Word-fix model", action: nil, keyEquivalent: "")
+            let mi = NSMenuItem(title: "Word-fix model: \(ollamaModel ?? "none")", action: nil, keyEquivalent: "")
             mi.submenu = mm
             menu.addItem(mi)
 
@@ -1825,9 +1916,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 it.state = m.name == rephraseModelSetting ? .on : .off
                 rm.addItem(it)
             }
-            let ri = NSMenuItem(title: "Rephrase model", action: nil, keyEquivalent: "")
+            let ri = NSMenuItem(title: "Rephrase model: \(rephraseModelSetting ?? "none")", action: nil, keyEquivalent: "")
             ri.submenu = rm
             menu.addItem(ri)
+        } else {
+            menu.addItem(label("No models found. Is \(Ollama.displayName) running?"))
+        }
+        if serverKind == .ollama {
+            if let s = downloadStatus { menu.addItem(label(s)) }
+            else { menu.addItem(item("Download a model…", #selector(downloadModel))) }
         }
         // Where the AI runs: Ollama, or another local AI app
         let serverMenu = NSMenu()
@@ -1850,66 +1947,282 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let serverItem = NSMenuItem(title: "AI app: \(Ollama.displayName)", action: nil, keyEquivalent: "")
         serverItem.submenu = serverMenu
         menu.addItem(serverItem)
-        if serverKind == .ollama {
-            if let s = downloadStatus { menu.addItem(label(s)) }
-            else { menu.addItem(item("Download a model…", #selector(downloadModel))) }
+
+        let engineMenu = NSMenu()
+        engineMenu.autoenablesItems = false
+        let choices: [(EngineChoice, String, Bool)] = [
+            (.auto, "Auto (best available)", true),
+            (.apple, "Apple Intelligence" + (appleOK ? "" : " (not available)"), appleOK),
+            (.ollama, Ollama.displayName + (ollamaModels.isEmpty ? " (not running)" : ""), !ollamaModels.isEmpty),
+            (.spell, "Spell checker only (fastest)", true)
+        ]
+        for (c, title, ok) in choices {
+            let it = item(title, #selector(selectEngine(_:)))
+            it.representedObject = c.rawValue
+            it.state = engineChoice == c ? .on : .off
+            it.isEnabled = ok
+            engineMenu.addItem(it)
         }
-        menu.addItem(item("Refresh engines", #selector(refreshEnginesAction)))
+        let engineItem = NSMenuItem(title: "Typo engine: \(engineLabel(activeEngine))", action: nil, keyEquivalent: "")
+        engineItem.submenu = engineMenu
+        menu.addItem(engineItem)
+        menu.addItem(item("Refresh models", #selector(refreshEnginesAction)))
         menu.addItem(.separator())
 
-        menu.addItem(label("Last fix: \(lastFixText)"))
-        menu.addItem(label("Undo a fix: Backspace right after it, or ⌃⌥Z"))
+        menu.addItem(NSMenuItem.sectionHeader(title: "Typing"))
+        menu.addItem(appsMenuItem())
+        menu.addItem(item("Edit word list…", #selector(editWordList)))
         let kept = learned.fixes.values.filter { $0.n >= 2 && $0.mixed != true }.count
         let never = learned.undos.values.filter { $0 >= 2 }.count
-        menu.addItem(label("Learned from you: \(kept) instant fixes · \(never) words left alone"))
+        menu.addItem(label("Learned: \(kept) instant fixes · \(never) words left alone"))
         if !learned.fixes.isEmpty {
             menu.addItem(item("Forget learned fixes", #selector(forgetLearned)))
         }
-        if let u = lastUndone {
-            menu.addItem(item("Never correct “\(u)”", #selector(addLastUndone)))
-        }
-        menu.addItem(item("Edit word list…", #selector(editWordList)))
-        if let front = NSWorkspace.shared.frontmostApplication, let bid = front.bundleIdentifier,
-           bid != Bundle.main.bundleIdentifier {
-            let name = front.localizedName ?? bid
-            let it = item(excludedApps.contains(bid) ? "Turn on in \(name)" : "Turn off in \(name)", #selector(toggleApp(_:)))
-            it.representedObject = bid
-            menu.addItem(it)
-        }
-        menu.addItem(appsMenuItem())
         menu.addItem(.separator())
 
-        menu.addItem(label("Rephrase: select text, then press ⌃⌥R"))
-        let sm = NSMenu()
-        let ask = item("Ask each time (a menu pops up)", #selector(selectAskStyle))
-        ask.state = rephraseAsk ? .on : .off
-        sm.addItem(ask)
-        sm.addItem(.separator())
-        sm.addItem(label("Or always use:"))
-        for (i, s) in allStyles().enumerated() {
-            if i == builtInStyles.count { sm.addItem(.separator()) }
-            let it = item(s.title, #selector(selectStyle(_:)))
-            it.representedObject = s.key
-            it.state = !rephraseAsk && rephraseStyle == s.key ? .on : .off
-            sm.addItem(it)
-        }
-        sm.addItem(.separator())
-        sm.addItem(item("Add a style…", #selector(addStyle)))
-        sm.addItem(item("Edit my styles…", #selector(editStyles)))
-        let si = NSMenuItem(title: "Rephrase style", action: nil, keyEquivalent: "")
-        si.submenu = sm
-        menu.addItem(si)
-        menu.addItem(label("Last rephrase: \(lastRephraseText)"))
-        menu.addItem(.separator())
-
+        menu.addItem(item("Welcome and shortcuts…", #selector(showWelcome)))
         let login = item("Start at login", #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
         menu.addItem(item("Open log", #selector(openLog)))
-        menu.addItem(item("Quit Fixaro", #selector(quit)))
+        return menu
+    }
+
+    @objc func rephraseFromMenu() { Task { await self.rephraseSelection() } }
+    @objc func undoFromMenu() { Task { await self.undoLastFixFromShortcut() } }
+
+    // MARK: Welcome window
+
+    var welcomed: Bool {
+        get { defaults.bool(forKey: "welcomed") }
+        set { defaults.set(newValue, forKey: "welcomed") }
+    }
+    var welcomeWindow: NSWindow?
+    var welcomeTimer: Timer?
+    var welcomeAXIcon = NSImageView()
+    var welcomeAXDetail = NSTextField(wrappingLabelWithString: "")
+    var welcomeAXButton = NSButton()
+    var welcomeAIIcon = NSImageView()
+    var welcomeAIDetail = NSTextField(wrappingLabelWithString: "")
+    var welcomeAIButton = NSButton()
+
+    @objc func showWelcome() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let w = welcomeWindow { w.makeKeyAndOrderFront(nil); return }
+
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 400),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Welcome to Fixaro"
+        w.isReleasedWhenClosed = false
+
+        let icon = NSImageView(image: NSApp.applicationIconImage)
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: 64).isActive = true
+        let name = NSTextField(labelWithString: "Fixaro")
+        name.font = .systemFont(ofSize: 24, weight: .bold)
+        let tagline = NSTextField(wrappingLabelWithString: "Fixes typos as you type and rewrites the text you select, with an AI that runs on this Mac. Nothing you write leaves your computer.")
+        tagline.textColor = .secondaryLabelColor
+        tagline.preferredMaxLayoutWidth = 340
+        let titles = NSStackView(views: [name, tagline])
+        titles.orientation = .vertical
+        titles.alignment = .leading
+        titles.spacing = 4
+        let top = NSStackView(views: [icon, titles])
+        top.alignment = .top
+        top.spacing = 16
+
+        welcomeAXButton = NSButton(title: "Allow…", target: self, action: #selector(welcomeAllow))
+        welcomeAIButton = NSButton(title: "Get Ollama", target: self, action: #selector(welcomeGetOllama))
+        let step1 = welcomeRow(icon: welcomeAXIcon, title: "1. Allow Accessibility", detail: welcomeAXDetail, button: welcomeAXButton)
+        let step2 = welcomeRow(icon: welcomeAIIcon, title: "2. An AI model on your Mac", detail: welcomeAIDetail, button: welcomeAIButton)
+
+        let keys = NSTextField(labelWithString: "Shortcuts")
+        keys.font = .boldSystemFont(ofSize: 13)
+        let k1 = NSTextField(labelWithString: "⌃⌥R    Rephrase the selected text (pick a style)")
+        let k2 = NSTextField(labelWithString: "⌃⌥Z    Undo the last typo fix (or Backspace right after it)")
+        for k in [k1, k2] { k.font = .systemFont(ofSize: 12); k.textColor = .secondaryLabelColor }
+        let shortcuts = NSStackView(views: [keys, k1, k2])
+        shortcuts.orientation = .vertical
+        shortcuts.alignment = .leading
+        shortcuts.spacing = 4
+
+        let done = NSButton(title: "Done", target: self, action: #selector(welcomeDone))
+        done.keyEquivalent = "\r"
+        done.setContentHuggingPriority(.required, for: .horizontal)
+        let spacer = NSView()
+        let bottom = NSStackView(views: [spacer, done])
+        bottom.distribution = .fill
+
+        let stack = NSStackView(views: [top, step1, step2, shortcuts, bottom])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 18
+        stack.edgeInsets = NSEdgeInsets(top: 22, left: 24, bottom: 20, right: 24)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        bottom.translatesAutoresizingMaskIntoConstraints = false
+        let content = NSView()
+        content.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: content.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            content.widthAnchor.constraint(equalToConstant: 480),
+            bottom.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -48),
+        ])
+        w.contentView = content
+        w.setContentSize(content.fittingSize)
+        w.center()
+        welcomeWindow = w
+        refreshWelcome()
+        w.makeKeyAndOrderFront(nil)
+
+        welcomeTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshWelcome() }
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: w, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.welcomeTimer?.invalidate()
+                self.welcomeTimer = nil
+                self.welcomeWindow = nil
+                self.welcomed = true
+            }
+        }
+    }
+
+    func welcomeRow(icon: NSImageView, title: String, detail: NSTextField, button: NSButton) -> NSView {
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.widthAnchor.constraint(equalToConstant: 20).isActive = true
+        icon.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        let t = NSTextField(labelWithString: title)
+        t.font = .boldSystemFont(ofSize: 13)
+        detail.font = .systemFont(ofSize: 12)
+        detail.textColor = .secondaryLabelColor
+        detail.preferredMaxLayoutWidth = 290
+        let texts = NSStackView(views: [t, detail])
+        texts.orientation = .vertical
+        texts.alignment = .leading
+        texts.spacing = 2
+        let row = NSStackView(views: [icon, texts, button])
+        row.alignment = .top
+        row.spacing = 10
+        return row
+    }
+
+    func setWelcomeStatus(_ view: NSImageView, ok: Bool, warn: Bool = false) {
+        let name = ok ? "checkmark.circle.fill" : (warn ? "exclamationmark.circle.fill" : "circle.dashed")
+        view.image = NSImage(systemSymbolName: name, accessibilityDescription: ok ? "done" : "to do")
+        view.contentTintColor = ok ? .systemGreen : (warn ? .systemOrange : .secondaryLabelColor)
+    }
+
+    func refreshWelcome() {
+        let ax = AXIsProcessTrusted()
+        setWelcomeStatus(welcomeAXIcon, ok: ax)
+        welcomeAXButton.isHidden = ax
+        welcomeAXDetail.stringValue = ax
+            ? "Done. Fixaro can now fix and rewrite text in your apps."
+            : "Lets Fixaro read and replace text in other apps. Click Allow…, then turn Fixaro on in the list."
+        let ai = !ollamaModels.isEmpty || appleOK
+        setWelcomeStatus(welcomeAIIcon, ok: ai, warn: !ai)
+        welcomeAIButton.isHidden = ai
+        if !ollamaModels.isEmpty {
+            welcomeAIDetail.stringValue = "\(Ollama.displayName) is running. Typos: \(ollamaModel ?? "none") · Rephrasing: \(rephraseModelSetting ?? ollamaModel ?? "none")"
+        } else if appleOK {
+            welcomeAIDetail.stringValue = "Using Apple Intelligence on this Mac."
+        } else {
+            welcomeAIDetail.stringValue = "Install Ollama, then run “ollama pull qwen3.5:4b” in Terminal. Fixaro finds it within seconds."
+        }
+    }
+
+    @objc func welcomeAllow() {
+        let opts = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
+        if !AXIsProcessTrustedWithOptions(opts) { openAXSettings() }
+    }
+
+    @objc func welcomeGetOllama() {
+        if let url = URL(string: "https://ollama.com/download") { NSWorkspace.shared.open(url) }
+    }
+
+    @objc func welcomeDone() {
+        welcomed = true
+        welcomeWindow?.close()
+    }
+
+    // MARK: The small "Rewriting…" bubble
+
+    var bubble: NSPanel?
+    let bubbleLabel = NSTextField(labelWithString: "")
+    let bubbleSpinner = NSProgressIndicator()
+    var bubbleGen = 0
+
+    /// A small floating note next to your text. It never takes the focus or the mouse.
+    func showBubble(_ text: String, busy: Bool, near point: NSPoint?) {
+        bubbleGen += 1
+        let panel: NSPanel
+        if let b = bubble {
+            panel = b
+        } else {
+            panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 180, height: 32),
+                            styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: true)
+            panel.isFloatingPanel = true
+            panel.level = .popUpMenu
+            panel.backgroundColor = .clear
+            panel.isOpaque = false
+            panel.hasShadow = true
+            panel.ignoresMouseEvents = true
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+            let fx = NSVisualEffectView()
+            fx.material = .popover
+            fx.state = .active
+            fx.wantsLayer = true
+            fx.layer?.cornerRadius = 9
+            fx.layer?.masksToBounds = true
+            bubbleSpinner.style = .spinning
+            bubbleSpinner.controlSize = .small
+            bubbleSpinner.isIndeterminate = true
+            bubbleLabel.font = .systemFont(ofSize: 12, weight: .medium)
+            let row = NSStackView(views: [bubbleSpinner, bubbleLabel])
+            row.spacing = 7
+            row.edgeInsets = NSEdgeInsets(top: 7, left: 11, bottom: 7, right: 13)
+            row.translatesAutoresizingMaskIntoConstraints = false
+            fx.addSubview(row)
+            NSLayoutConstraint.activate([
+                row.leadingAnchor.constraint(equalTo: fx.leadingAnchor),
+                row.trailingAnchor.constraint(equalTo: fx.trailingAnchor),
+                row.topAnchor.constraint(equalTo: fx.topAnchor),
+                row.bottomAnchor.constraint(equalTo: fx.bottomAnchor),
+            ])
+            panel.contentView = fx
+            bubble = panel
+        }
+        bubbleLabel.stringValue = text
+        bubbleSpinner.isHidden = !busy
+        if busy { bubbleSpinner.startAnimation(nil) } else { bubbleSpinner.stopAnimation(nil) }
+        let size = panel.contentView?.fittingSize ?? NSSize(width: 180, height: 32)
+        let p = point ?? NSPoint(x: NSEvent.mouseLocation.x + 12, y: NSEvent.mouseLocation.y - 12)
+        panel.setFrame(NSRect(x: p.x, y: p.y - size.height, width: size.width, height: size.height), display: true)
+        panel.orderFrontRegardless()
+    }
+
+    /// Hide the bubble now, or after a moment (unless a newer one has appeared since).
+    func hideBubble(after seconds: Double = 0) {
+        let gen = bubbleGen
+        guard seconds > 0 else { bubble?.orderOut(nil); bubbleSpinner.stopAnimation(nil); return }
+        Task {
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            if self.bubbleGen == gen { self.bubble?.orderOut(nil) }
+        }
     }
 
     @objc func toggleEnabled() { enabled.toggle(); reset() }
+    @objc func toggleFixTyping() {
+        fixTyping.toggle()
+        reset()
+        logLine(fixTyping ? "Typo fixing on" : "Typo fixing off: rephrase only")
+        if fixTyping { Task { await self.warmUp() } }
+    }
     @objc func selectStyle(_ sender: NSMenuItem) {
         if let k = sender.representedObject as? String { rephraseStyle = k; rephraseAsk = false }
     }
