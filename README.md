@@ -92,15 +92,34 @@ Untick **Fix typos as I type** in the menu bar. ⌃⌥R keeps working, Fixaro le
 
 ## Install
 
-You need **macOS 14 or later** (Apple Silicon or Intel) and **[Ollama](https://ollama.com)**, the free app that runs the AI on your Mac.
+You need **macOS 14 or later**, on Apple Silicon or Intel. It takes about 5 minutes.
 
-1. **Download** `Fixaro-x.y.z.dmg` from the [latest release](https://github.com/Z2mjeed-prog/Fixaro/releases/latest).
-2. **Open it and drag Fixaro into Applications.**
-3. **Open Fixaro.** The first time, macOS says it can't check Fixaro for malware, because Fixaro isn't sold through Apple. Click **Done**, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. You only do this once.
-4. **Follow the welcome window.** It walks you through the rest:
-   - **Allow…** turns Fixaro on under Accessibility.
-   - **Get Ollama**, if you don't have it yet.
-   - **Download** gets the right model for your Mac's memory.
+### 1. Get Ollama
+
+Ollama is the free app that runs the AI on your Mac.
+
+1. Download it from [ollama.com/download](https://ollama.com/download).
+2. Open the downloaded file. If you get a .zip, double-click it first.
+3. Move **Ollama** into **Applications** and open it. If it offers to install its command line tool, click **Install**.
+
+### 2. Get Fixaro
+
+1. Download **Fixaro-x.y.z.dmg** from the [latest release](https://github.com/Z2mjeed-prog/Fixaro/releases/latest). It's under **Assets**. The "Source code" files are not the app.
+2. Double-click the .dmg. In the window that opens, **drag the Fixaro icon onto the Applications folder**.
+3. Open **Applications** and double-click **Fixaro**.
+4. **The first time only,** macOS says it can't check Fixaro for malware, because Fixaro isn't sold through Apple:
+   - Click **Done**.
+   - Open **System Settings → Privacy & Security** and scroll down.
+   - Next to "Fixaro was blocked", click **Open Anyway**, then **Open Anyway** again, and enter your password.
+
+### 3. Finish in the welcome window
+
+Fixaro opens a welcome window:
+
+- **Allow…** asks macOS to let Fixaro work in other apps. Click **Open System Settings**, and switch **Fixaro** on.
+- **Download** gets the right AI model for your Mac's memory (about 3 to 4 GB).
+
+That's it. The **F** in your menu bar means Fixaro is on. Select a sentence anywhere and press **⌃⌥R** to try it.
 
 On a Mac with **18 GB or more**, also get `gemma4:e4b` for better rephrasing (menu bar → Settings → **Download a model…**). Any model works: see [Choosing models](docs/MODELS.md).
 
