@@ -26,8 +26,10 @@ SDK="$(xcrun --sdk macosx --show-sdk-path)"
 # Ollama check (not required to build, but Fixaro needs it for AI fixes and rephrasing)
 if TAGS="$(curl -s --max-time 2 http://127.0.0.1:11434/api/tags)"; then
   echo "Ollama: running"
-  for m in qwen3.5:4b gemma4:e4b; do
-    echo "$TAGS" | grep -q "\"$m\"" || echo "   tip: for best results run:  ollama pull $m"
+  MEM_GB=$(( $(sysctl -n hw.memsize) / 1073741824 ))
+  if [ "$MEM_GB" -ge 18 ]; then REC="qwen3.5:4b gemma4:e4b"; elif [ "$MEM_GB" -ge 16 ]; then REC="qwen3.5:4b"; else REC="qwen3.5:2b"; fi
+  for m in $REC; do
+    echo "$TAGS" | grep -q "\"$m\"" || echo "   suggested for your ${MEM_GB} GB Mac:  ollama pull $m   (any model works; see README)"
   done
 else
   echo "Ollama: not running. Fixaro will use the Mac's spell checker only until you install and open Ollama (ollama.com)."

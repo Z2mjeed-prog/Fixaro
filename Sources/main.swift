@@ -468,7 +468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Biggest installed text model that comfortably fits in this Mac's memory.
     func pickRephraseModel(_ ms: [OllamaModel]) -> String? {
         let ram = Double(ProcessInfo.processInfo.physicalMemory)
-        let fits = ms.filter { $0.size > 0 && Double($0.size) <= ram * 0.45 }.sorted { $0.size > $1.size }
+        let fits = ms.filter { $0.size > 0 && Double($0.size) <= ram * 0.55 }.sorted { $0.size > $1.size }
         return (fits.first ?? ms.sorted { $0.size < $1.size }.first)?.name
     }
 
