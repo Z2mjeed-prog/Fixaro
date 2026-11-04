@@ -24,6 +24,9 @@ jobs:
           sudo xcode-select -s "$XC"
           xcrun swiftc --version
 
+      - name: Install the .dmg styling tool
+        run: brew install create-dmg
+
       - name: Build the app, .dmg and .zip
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then bash scripts/package.sh "$GITHUB_REF_NAME"; else bash scripts/package.sh; fi

@@ -25,14 +25,27 @@ lipo -create "$OUT/Fixaro-arm64" "$OUT/Fixaro-x86_64" -output "$APP/Contents/Mac
 rm "$OUT/Fixaro-arm64" "$OUT/Fixaro-x86_64"
 codesign --force --sign - "$APP"
 
-# A .zip, and a .dmg with a shortcut to Applications to drag the app onto
+# A .zip, and a .dmg whose window says "Drag Fixaro into Applications"
 (cd "$OUT" && ditto -c -k --keepParent Fixaro.app "Fixaro-$VERSION.zip")
 STAGE="$OUT/dmg"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Fixaro" -srcfolder "$STAGE" -ov -format UDZO "$OUT/Fixaro-$VERSION.dmg" >/dev/null
-rm -rf "$STAGE"
+DMG="$OUT/Fixaro-$VERSION.dmg"
+BG="$OUT/background.tiff"
+tiffutil -cathidpicheck "$DIR/scripts/dmg/background.png" "$DIR/scripts/dmg/background@2x.png" -out "$BG" >/dev/null 2>&1 \
+  || cp "$DIR/scripts/dmg/background.png" "$BG"
+if command -v create-dmg >/dev/null 2>&1 && create-dmg --volname "Fixaro" --background "$BG" \
+     --window-pos 200 120 --window-size 600 400 --icon-size 128 \
+     --icon "Fixaro.app" 160 190 --hide-extension "Fixaro.app" --app-drop-link 440 190 \
+     "$DMG" "$STAGE" >/dev/null; then
+  echo "Made the styled .dmg"
+else
+  echo "create-dmg not available (brew install create-dmg): making a plain .dmg"
+  rm -f "$DMG"
+  ln -s /Applications "$STAGE/Applications"
+  hdiutil create -volname "Fixaro" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+fi
+rm -rf "$STAGE" "$BG"
 
 lipo -archs "$APP/Contents/MacOS/Fixaro"
 ls -lh "$OUT"/*.dmg "$OUT"/*.zip
