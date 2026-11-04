@@ -44,6 +44,11 @@ Good to know: Fixaro needs **Accessibility** permission, the only way a Mac app 
    - **Or pick a style** with its number key or a click.
    - **Return** on an empty box uses your usual style. **Esc** cancels.
 
+<p align="center">
+  <img src="docs/demo-ask.gif" width="760" alt="A draft, 'hi sara, sorry the report is late. the data team didn't send the numbers yet so we can't finish it. will send when we get them', is selected and Control-Option-S is pressed. A popup opens next to the text with a box and a list of styles. Typing 'polite email to my manager, and promise it by Thursday' and pressing Return turns it into 'Hi Sara, I'm sorry the report is running late. The data team hasn't sent us the numbers yet, so we can't finish it. I'll send it to you by Thursday.'">
+  <br><sub>An illustration of ⌃⌥S</sub>
+</p>
+
 Fixaro corrects grammar, spelling and punctuation, rewrites the text, and puts it right back in place. **⌘Z** brings back the original.
 
 **Faster than a chatbot.** With ChatGPT or Claude, you copy your text, switch apps, paste it, ask for a rewrite, wait, copy the answer, switch back and paste it in. With Fixaro you select the text, press ⌃⌥R, and the rewrite appears right where you're typing, in seconds, without your text leaving your Mac.
