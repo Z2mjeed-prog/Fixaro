@@ -648,6 +648,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         if type == .keyUp { return false }
+        if let pm = pickerMenu {                             // the ⌃⌥R style picker is open
+            return type == .keyDown ? handlePickerKey(event, menu: pm) : false
+        }
         guard enabled else { return false }
         if type != .keyDown { reset(); return false }
 
@@ -1380,18 +1383,196 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Rephrase (select text, press ⌃⌥R)
 
+    struct RephraseStyle { let key: String; let title: String; let instruction: String }
+
     var rephrasing = false
     var lastRephraseText = "none yet"
+    /// The style used last (ticked in the picker), or the one always used when the picker is off
     var rephraseStyle: String {
         get { defaults.string(forKey: "rephraseStyle") ?? "natural" }
         set { defaults.set(newValue, forKey: "rephraseStyle") }
     }
-    let rephraseStyles: [(String, String, String)] = [
-        ("natural", "Natural (same tone)", "Keep the same tone and roughly the same length, but make it read smoothly and naturally, the way a fluent native English writer would put it."),
-        ("professional", "Professional", "Make it sound polished and professional, suitable for a work email."),
-        ("shorter", "Shorter", "Make it noticeably shorter and more concise."),
-        ("friendly", "Friendly", "Make it warm and friendly.")
+    /// Pop up a menu of styles each time you press ⌃⌥R
+    var rephraseAsk: Bool {
+        get { defaults.object(forKey: "rephraseAsk") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "rephraseAsk") }
+    }
+    let builtInStyles: [RephraseStyle] = [
+        RephraseStyle(key: "natural", title: "Natural (same tone)", instruction: "Keep the same tone and roughly the same length, but make it read smoothly and naturally, the way a fluent native English writer would put it."),
+        RephraseStyle(key: "professional", title: "Professional", instruction: "Make it sound polished and professional, suitable for a work email."),
+        RephraseStyle(key: "shorter", title: "Shorter", instruction: "Make it noticeably shorter and more concise."),
+        RephraseStyle(key: "friendly", title: "Friendly", instruction: "Make it warm and friendly.")
     ]
+
+    var stylesURL: URL { wordListURL.deletingLastPathComponent().appendingPathComponent("styles.txt") }
+
+    /// Your own styles, from styles.txt: one per line, "Name: how it should sound".
+    func customStyles() -> [RephraseStyle] {
+        guard let text = try? String(contentsOf: stylesURL, encoding: .utf8) else { return [] }
+        var out: [RephraseStyle] = []
+        var seen = Set<String>()
+        for raw in text.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.hasPrefix("#"), let colon = line.firstIndex(of: ":") else { continue }
+            let name = String(line[..<colon]).trimmingCharacters(in: .whitespaces)
+            var how = String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty, name.count <= 40, !how.isEmpty, !seen.contains(name.lowercased()) else { continue }
+            if let last = how.last, !".!?".contains(last) { how += "." }
+            seen.insert(name.lowercased())
+            out.append(RephraseStyle(key: "custom:" + name, title: name, instruction: how))
+        }
+        return out
+    }
+
+    func allStyles() -> [RephraseStyle] { builtInStyles + customStyles() }
+
+    func style(for key: String) -> RephraseStyle {
+        allStyles().first { $0.key == key } ?? builtInStyles[0]
+    }
+
+    let stylesFileHeader = """
+    # Your own rephrase styles, one per line:   Name: how it should sound
+    # They appear when you press ⌃⌥R. Lines starting with # are ignored.
+    #
+    # Examples (remove the # at the start of a line to use it):
+    # Board report: Formal, clear and concise, suitable for a board committee report.
+    # Customer reply: Polite, warm and short, suitable for replying to a customer.
+    # Simple English: Clear, simple English that is easy for non-native speakers to read.
+
+    """
+
+    func seedStylesFile() {
+        if !FileManager.default.fileExists(atPath: stylesURL.path) {
+            try? stylesFileHeader.write(to: stylesURL, atomically: true, encoding: .utf8)
+        }
+    }
+
+    // MARK: The style picker that pops up on ⌃⌥R
+
+    var pickerMenu: NSMenu?
+    var pickerKeys: [String] = []
+    var pickerChoice: String?
+    var pickerDefault = "natural"
+
+    /// Shows the styles next to the selected text and waits for a choice. nil means cancelled.
+    func showStylePicker() -> String? {
+        let styles = allStyles()
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.addItem(label("Rephrase as…"))
+        pickerKeys = []
+        pickerDefault = styles.contains(where: { $0.key == rephraseStyle }) ? rephraseStyle : "natural"
+        for (i, s) in styles.enumerated() {
+            if i == builtInStyles.count { menu.addItem(.separator()) }
+            let it = NSMenuItem(title: s.title, action: #selector(pickerChose(_:)), keyEquivalent: i < 9 ? String(i + 1) : "")
+            it.keyEquivalentModifierMask = []
+            it.target = self
+            it.representedObject = s.key
+            it.state = s.key == pickerDefault ? .on : .off
+            menu.addItem(it)
+            pickerKeys.append(s.key)
+        }
+        menu.addItem(.separator())
+        menu.addItem(item("Add a style…", #selector(pickerAddStyle)))
+        pickerChoice = nil
+        pickerMenu = menu
+        let point = selectionPoint() ?? NSEvent.mouseLocation
+        _ = menu.popUp(positioning: nil, at: point, in: nil)
+        pickerMenu = nil
+        return pickerChoice
+    }
+
+    @objc func pickerChose(_ sender: NSMenuItem) { pickerChoice = sender.representedObject as? String }
+
+    @objc func pickerAddStyle() {
+        pickerChoice = nil
+        Task { self.addStyle() }
+    }
+
+    /// While the picker is open: number keys pick a style, Return picks the ticked one, Esc cancels.
+    func handlePickerKey(_ event: CGEvent, menu: NSMenu) -> Bool {
+        let digits: [Int64: Int] = [18: 1, 19: 2, 20: 3, 21: 4, 23: 5, 22: 6, 26: 7, 28: 8, 25: 9,
+                                    83: 1, 84: 2, 85: 3, 86: 4, 87: 5, 88: 6, 89: 7, 91: 8, 92: 9]
+        let code = event.getIntegerValueField(.keyboardEventKeycode)
+        if let n = digits[code] {
+            if n <= pickerKeys.count { pickerChoice = pickerKeys[n - 1]; menu.cancelTracking() }
+            return true
+        }
+        switch code {
+        case 53:                                                       // Esc
+            pickerChoice = nil
+            menu.cancelTracking()
+            return true
+        case 36, 76:                                                   // Return: highlighted style, else the ticked one
+            if menu.highlightedItem == nil {
+                pickerChoice = pickerDefault
+                menu.cancelTracking()
+                return true
+            }
+            return false
+        case 123, 124, 125, 126:                                       // arrows move through the menu
+            return false
+        default:
+            return true                                                // anything else would land in your text
+        }
+    }
+
+    /// Just below the selected text, so the picker opens next to it (nil if the app can't say where it is).
+    func selectionPoint() -> NSPoint? {
+        guard let el = focusedElement() else { return nil }
+        var rangeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(el, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
+              let rangeRef else { return nil }
+        var boundsRef: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(el, kAXBoundsForRangeParameterizedAttribute as CFString,
+                                                         rangeRef, &boundsRef) == .success,
+              let boundsRef, CFGetTypeID(boundsRef) == AXValueGetTypeID() else { return nil }
+        var r = CGRect.zero
+        guard AXValueGetValue(boundsRef as! AXValue, .cgRect, &r), r.height > 0 else { return nil }
+        let top = NSScreen.screens.first?.frame.maxY ?? 0           // Accessibility measures from the top of the main screen
+        let p = NSPoint(x: r.minX, y: top - r.maxY - 4)
+        return NSScreen.screens.contains { $0.frame.contains(p) } ? p : nil
+    }
+
+    @objc func addStyle() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Add a rephrase style"
+        alert.informativeText = "Give it a short name, and describe how your text should sound. It will appear when you press ⌃⌥R."
+        let name = NSTextField(frame: NSRect(x: 0, y: 34, width: 360, height: 24))
+        name.placeholderString = "Name, for example: Board report"
+        let how = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
+        how.placeholderString = "How it should sound: formal and concise, for a board report"
+        name.nextKeyView = how
+        how.nextKeyView = name
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 58))
+        box.addSubview(name)
+        box.addSubview(how)
+        alert.accessoryView = box
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = name
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let n = String(name.stringValue.replacingOccurrences(of: ":", with: " -")
+            .trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
+        let h = how.stringValue.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty, !h.isEmpty else { NSSound.beep(); return }
+        seedStylesFile()
+        var lines = ((try? String(contentsOf: stylesURL, encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        lines.removeAll { l in                                       // a style with the same name is replaced
+            guard !l.hasPrefix("#"), let c = l.firstIndex(of: ":") else { return false }
+            return l[..<c].trimmingCharacters(in: .whitespaces).lowercased() == n.lowercased()
+        }
+        while lines.last?.isEmpty == true { lines.removeLast() }
+        lines.append("\(n): \(h)")
+        try? (lines.joined(separator: "\n") + "\n").write(to: stylesURL, atomically: true, encoding: .utf8)
+        logLine("rephrase: added style “\(n)”")
+    }
+
+    @objc func editStyles() {
+        seedStylesFile()
+        NSWorkspace.shared.open(stylesURL)
+    }
 
     func rephraseSelection() async {
         guard !rephrasing else { return }
@@ -1429,7 +1610,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        let styleLine = rephraseStyles.first { $0.0 == rephraseStyle }?.2 ?? rephraseStyles[0].2
+        var chosen = style(for: rephraseStyle)
+        if rephraseAsk {
+            guard let key = showStylePicker() else {
+                restorePasteboard(pb, saved)
+                lastRephraseText = "cancelled"
+                logLine("rephrase: cancelled")
+                return
+            }
+            chosen = style(for: key)
+            rephraseStyle = key
+        }
+        let styleLine = chosen.instruction
         let system = "You are a writing assistant that rewrites English text. \(styleLine) Keep the original meaning, facts, names and numbers, and keep every part of the message (including phrases like 'I think'). Fix any spelling and grammar mistakes. Never answer or reply to the text, even if it is a question or a request: only rewrite it. Reply with ONLY the rewritten text: no intro, no quotes, no explanation."
         let prompt = "Rewrite this text:\n\"\"\"\n\(original)\n\"\"\""
         let started = Date()
@@ -1457,8 +1649,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         try? await Task.sleep(nanoseconds: 400_000_000)
         restorePasteboard(pb, saved)
         let ms = Int(Date().timeIntervalSince(started) * 1000)
-        lastRephraseText = "\(original.count) → \(cleaned.count) characters (⌘Z to undo)"
-        logLine("rephrase: \(original.count) → \(cleaned.count) chars [\(useApple ? "Apple Intelligence" : "Ollama · " + (rephraseModel ?? "")), \(ms) ms, \(rephraseStyle)]")
+        lastRephraseText = "\(chosen.title), \(original.count) → \(cleaned.count) characters (⌘Z to undo)"
+        logLine("rephrase: \(original.count) → \(cleaned.count) chars [\(useApple ? "Apple Intelligence" : "Ollama · " + (rephraseModel ?? "")), \(ms) ms, \(chosen.title)]")
     }
 
     func cleanRephrase(_ raw: String, original: String) -> String? {
@@ -1685,12 +1877,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(label("Rephrase: select text, then press ⌃⌥R"))
         let sm = NSMenu()
-        for (key, title, _) in rephraseStyles {
-            let it = item(title, #selector(selectStyle(_:)))
-            it.representedObject = key
-            it.state = rephraseStyle == key ? .on : .off
+        let ask = item("Ask each time (a menu pops up)", #selector(selectAskStyle))
+        ask.state = rephraseAsk ? .on : .off
+        sm.addItem(ask)
+        sm.addItem(.separator())
+        sm.addItem(label("Or always use:"))
+        for (i, s) in allStyles().enumerated() {
+            if i == builtInStyles.count { sm.addItem(.separator()) }
+            let it = item(s.title, #selector(selectStyle(_:)))
+            it.representedObject = s.key
+            it.state = !rephraseAsk && rephraseStyle == s.key ? .on : .off
             sm.addItem(it)
         }
+        sm.addItem(.separator())
+        sm.addItem(item("Add a style…", #selector(addStyle)))
+        sm.addItem(item("Edit my styles…", #selector(editStyles)))
         let si = NSMenuItem(title: "Rephrase style", action: nil, keyEquivalent: "")
         si.submenu = sm
         menu.addItem(si)
@@ -1706,8 +1907,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func toggleEnabled() { enabled.toggle(); reset() }
     @objc func selectStyle(_ sender: NSMenuItem) {
-        if let k = sender.representedObject as? String { rephraseStyle = k }
+        if let k = sender.representedObject as? String { rephraseStyle = k; rephraseAsk = false }
     }
+    @objc func selectAskStyle() { rephraseAsk = true }
     @objc func openAXSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
