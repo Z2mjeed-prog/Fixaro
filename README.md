@@ -102,15 +102,25 @@ Ollama is the free app that runs the AI on your Mac.
 2. Open the downloaded file. If you get a .zip, double-click it first.
 3. Move **Ollama** into **Applications** and open it. If it offers to install its command line tool, click **Install**.
 
-### 2. Get Fixaro
+### 2. Install Fixaro
 
-1. Download **Fixaro-x.y.z.dmg** from the [latest release](https://github.com/Z2mjeed-prog/Fixaro/releases/latest). It's under **Assets**. The "Source code" files are not the app.
-2. Double-click the .dmg. In the window that opens, **drag the Fixaro icon onto the Applications folder**.
-3. Open **Applications** and double-click **Fixaro**.
-4. **The first time only,** macOS says it can't check Fixaro for malware, because Fixaro isn't sold through Apple:
-   - Click **Done**.
-   - Open **System Settings → Privacy & Security** and scroll down.
-   - Next to "Fixaro was blocked", click **Open Anyway**, then **Open Anyway** again, and enter your password.
+Open **Terminal** (press **⌘ Space**, type `Terminal`, press **Return**) and paste this line:
+
+```bash
+git clone https://github.com/Z2mjeed-prog/Fixaro.git && bash Fixaro/build.sh
+```
+
+It downloads Fixaro, builds it on your Mac, puts it in the Applications folder inside your home folder, and opens it. If macOS asks to install Apple's developer tools first, click **Install**, wait until it finishes, then paste the same line again.
+
+To update later: `cd Fixaro && git pull && bash build.sh`
+
+<details>
+<summary>Prefer a download? Use the .dmg instead</summary>
+
+1. Download **Fixaro-x.y.z.dmg** from the [latest release](https://github.com/Z2mjeed-prog/Fixaro/releases/latest), under **Assets**. The "Source code" files are not the app.
+2. Double-click it and drag the Fixaro icon onto the Applications folder.
+3. Open Fixaro from Applications. The first time only, macOS says it can't check Fixaro: click **Done**, open **System Settings → Privacy & Security**, and click **Open Anyway**.
+</details>
 
 ### 3. Finish in the welcome window
 
@@ -123,18 +133,6 @@ That's it. The **F** in your menu bar means Fixaro is on. Select a sentence anyw
 
 On a Mac with **18 GB or more**, also get `gemma4:e4b` for better rephrasing (menu bar → Settings → **Download a model…**). Any model works: see [Choosing models](docs/MODELS.md).
 
-<details>
-<summary><b>Build it yourself instead</b></summary>
-
-You need Apple's free Command Line Tools (the script offers to install them).
-
-```bash
-git clone https://github.com/Z2mjeed-prog/Fixaro.git
-bash Fixaro/build.sh
-```
-
-This builds Fixaro and installs it into `~/Applications`. To make the .dmg yourself, run `bash Fixaro/scripts/package.sh`.
-</details>
 
 ## Using it
 
@@ -167,7 +165,15 @@ Terminal and code editors are off by default. Fixaro also works with LM Studio, 
 
 ## Uninstall
 
-Quit Fixaro from its menu, delete `~/Applications/Fixaro.app`, and remove it from **Privacy & Security → Accessibility**. Optionally delete its data folders listed under Privacy.
+Paste this into Terminal:
+
+```bash
+osascript -e 'quit app "Fixaro"'
+rm -rf /Applications/Fixaro.app ~/Applications/Fixaro.app ~/Library/Application\ Support/Fixaro ~/Library/Logs/Fixaro.log
+defaults delete io.github.z2mjeed-prog.fixaro; tccutil reset Accessibility io.github.z2mjeed-prog.fixaro
+```
+
+It removes the app, your word list and styles, its settings, and its Accessibility permission. If you turned on **Start at login**, also remove Fixaro under **System Settings → General → Login Items**.
 
 ## How it works
 
