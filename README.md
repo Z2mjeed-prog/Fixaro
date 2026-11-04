@@ -42,6 +42,10 @@ To change or delete styles, choose **Edit my styles…**. They're kept in one te
 
 Prefer one style every time, with no menu? Pick it under **Rephrase style**.
 
+### Only want rephrasing?
+
+Untick **Fix typos as I type** in the menu bar. ⌃⌥R keeps working, Fixaro leaves your typing alone, and only the rephrase model is loaded.
+
 ## Fix typos as you type
 
 <p align="center">
@@ -73,7 +77,7 @@ You need **macOS 14 or later** (Apple Silicon recommended) and **[Ollama](https:
    | **16 GB** | `ollama pull qwen3.5:4b` |
    | **18 GB or more** | `ollama pull qwen3.5:4b` and `ollama pull gemma4:e4b` (for rephrasing) |
 
-   Any model works. See [Choosing models](docs/MODELS.md) for test results and other options.
+   Only want rephrasing? The rephrasing model alone is enough. Any model works: see [Choosing models](docs/MODELS.md) for test results and other options.
 3. **Download and build Fixaro:**
    ```bash
    git clone https://github.com/Z2mjeed-prog/Fixaro.git
@@ -93,6 +97,7 @@ You need **macOS 14 or later** (Apple Silicon recommended) and **[Ollama](https:
 | Change models | Menu → **Word-fix model** / **Rephrase model** |
 | Never correct a word | Menu → **Edit word list…** |
 | Turn it off in some apps | Menu → **Turn off in apps** |
+| Rephrase only, no autocorrect | Menu → untick **Fix typos as I type** |
 | Pause everything | Menu → **Pause** |
 
 Terminal and code editors are off by default. Fixaro also works with LM Studio, Jan and other local AI apps ([how](docs/MODELS.md#use-another-ai-app-instead-of-ollama-beta)).

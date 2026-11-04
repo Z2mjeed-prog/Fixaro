@@ -405,6 +405,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         get { defaults.object(forKey: "enabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "enabled"); updateIcon() }
     }
+    /// Off = rephrase only: ⌃⌥R still works, but typing is left alone and the word-fix model isn't loaded
+    var fixTyping: Bool {
+        get { defaults.object(forKey: "fixTyping") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "fixTyping") }
+    }
     var engineChoice: EngineChoice {
         get { EngineChoice(rawValue: defaults.string(forKey: "engine") ?? "") ?? .auto }
         set { defaults.set(newValue.rawValue, forKey: "engine"); resolveEngine() }
@@ -573,6 +578,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func warmUp() async {
+        guard fixTyping else { return }                       // rephrase only: no need to load the word-fix model
         let sample = makePrompt(word: "helo", before: "I said ", after: " to her", guesses: ["hello", "help", "hero"])
         let start = Date()
         switch activeEngine {
@@ -670,6 +676,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             default: break
             }
         }
+        if !fixTyping { return false }                        // rephrase only: leave typing alone
         if flags.contains(.maskCommand) || flags.contains(.maskControl) { reset(); return false }
 
         let keycode = event.getIntegerValueField(.keyboardEventKeycode)
@@ -1777,11 +1784,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let trusted = AXIsProcessTrusted()
 
         menu.addItem(label(!trusted || tap == nil ? "Fixaro needs Accessibility permission"
-                                                   : (enabled ? "Fixaro is on" : "Fixaro is paused")))
+                                                   : (!enabled ? "Fixaro is paused" : (fixTyping ? "Fixaro is on" : "Fixaro is on: rephrase only"))))
         if !trusted || tap == nil {
             menu.addItem(item("Open Accessibility Settings…", #selector(openAXSettings)))
         }
         menu.addItem(item(enabled ? "Pause" : "Resume", #selector(toggleEnabled)))
+        let ft = item("Fix typos as I type", #selector(toggleFixTyping))
+        ft.state = fixTyping ? .on : .off
+        menu.addItem(ft)
         menu.addItem(.separator())
 
         menu.addItem(label("Engine: \(engineLabel(activeEngine))"))
@@ -1910,6 +1920,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func toggleEnabled() { enabled.toggle(); reset() }
+    @objc func toggleFixTyping() {
+        fixTyping.toggle()
+        reset()
+        logLine(fixTyping ? "Typo fixing on" : "Typo fixing off: rephrase only")
+        if fixTyping { Task { await self.warmUp() } }
+    }
     @objc func selectStyle(_ sender: NSMenuItem) {
         if let k = sender.representedObject as? String { rephraseStyle = k; rephraseAsk = false }
     }
