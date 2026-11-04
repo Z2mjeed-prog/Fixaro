@@ -1505,6 +1505,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let seed = """
             # Fixaro word list: one word per line. These words are never corrected.
             # Add names, work terms and slang here. Changes are picked up within 10 seconds.
+            Fixaro
+            Ollama
+            Qwen
+            Gemma
             """
             try? seed.write(to: wordListURL, atomically: true, encoding: .utf8)
         }

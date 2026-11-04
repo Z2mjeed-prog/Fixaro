@@ -35,7 +35,7 @@ Fixaro needs **Accessibility** permission. That's the only way a Mac app can see
 ## Requirements
 
 - **macOS 14 or later.** Apple Silicon (M1 or newer) is recommended; Intel works, but the AI is slower.
-- **[Ollama](https://ollama.com)** (free), plus one or two models (below). LM Studio, Jan, llama.cpp or MLX servers work too ([see below](#use-another-ai-app-instead-of-ollama)).
+- **[Ollama](https://ollama.com)** (free), plus one or two models (below). LM Studio, Jan, llama.cpp or MLX servers work too ([see below](#use-another-ai-app-instead-of-ollama-beta)).
 - **Apple's free Command Line Tools.** The build script installs them if they're missing.
 
 ## Install
@@ -87,7 +87,7 @@ Terminal and code editors are off by default.
 
 **Getting a new model:** use **Download a model…** in the menu bar (or `ollama pull <name>` in Terminal). New models show up in the menu within seconds, with no restart needed. Embedding models are hidden because they can't write text.
 
-### Use another AI app instead of Ollama
+### Use another AI app instead of Ollama (beta)
 
 Already use **LM Studio**, **Jan**, a **llama.cpp** server or an **MLX** server? Fixaro works with any app that offers an OpenAI-compatible API:
 
@@ -96,6 +96,8 @@ Already use **LM Studio**, **Jan**, a **llama.cpp** server or an **MLX** server?
 3. Pick your **Word-fix model** and **Rephrase model** from the list.
 
 If you enter an address that isn't on your Mac, Fixaro warns you first, because your text would then leave your computer.
+
+This is new: if it doesn't work with your app, please [open an issue](https://github.com/Z2mjeed-prog/Fixaro/issues) and say which app and model you use.
 
 Results from `tools/bench.py` on an M-series Mac with 18 GB of memory (18 real typos plus one rephrase):
 
