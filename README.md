@@ -92,25 +92,30 @@ Untick **Fix typos as I type** in the menu bar. ⌃⌥R keeps working, Fixaro le
 
 ## Install
 
-You need **macOS 14 or later** (Apple Silicon recommended) and **[Ollama](https://ollama.com)** (free).
+You need **macOS 14 or later** (Apple Silicon or Intel) and **[Ollama](https://ollama.com)**, the free app that runs the AI on your Mac.
 
-1. **Install Ollama** and open it.
-2. **Download a model** for your Mac's memory (Apple menu → About This Mac):
+1. **Download** `Fixaro-x.y.z.dmg` from the [latest release](https://github.com/Z2mjeed-prog/Fixaro/releases/latest).
+2. **Open it and drag Fixaro into Applications.**
+3. **Open Fixaro.** The first time, macOS says it can't check Fixaro for malware, because Fixaro isn't sold through Apple. Click **Done**, open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. You only do this once.
+4. **Follow the welcome window.** It walks you through the rest:
+   - **Allow…** turns Fixaro on under Accessibility.
+   - **Get Ollama**, if you don't have it yet.
+   - **Download** gets the right model for your Mac's memory.
 
-   | Your Mac's memory | Run this in Terminal |
-   |---|---|
-   | **8 GB** | `ollama pull nemotron-3-nano:4b` |
-   | **16 GB** | `ollama pull qwen3.5:4b` |
-   | **18 GB or more** | `ollama pull qwen3.5:4b` and `ollama pull gemma4:e4b` (for rephrasing) |
+On a Mac with **18 GB or more**, also get `gemma4:e4b` for better rephrasing (menu bar → Settings → **Download a model…**). Any model works: see [Choosing models](docs/MODELS.md).
 
-   Only want rephrasing? The rephrasing model alone is enough. Any model works: see [Choosing models](docs/MODELS.md) for test results and other options.
-3. **Download and build Fixaro:**
-   ```bash
-   git clone https://github.com/Z2mjeed-prog/Fixaro.git
-   bash Fixaro/build.sh
-   ```
-   This installs it into `~/Applications`. No git? Use **Code → Download ZIP**, unzip it, and run `bash Fixaro-main/build.sh`.
-4. **Allow it:** when macOS asks, open **System Settings → Privacy & Security → Accessibility** and turn **Fixaro** on.
+<details>
+<summary><b>Build it yourself instead</b></summary>
+
+You need Apple's free Command Line Tools (the script offers to install them).
+
+```bash
+git clone https://github.com/Z2mjeed-prog/Fixaro.git
+bash Fixaro/build.sh
+```
+
+This builds Fixaro and installs it into `~/Applications`. To make the .dmg yourself, run `bash Fixaro/scripts/package.sh`.
+</details>
 
 ## Using it
 
@@ -140,7 +145,6 @@ Terminal and code editors are off by default. Fixaro also works with LM Studio, 
 - **English only.** Arabic and other non-Latin text is left alone.
 - **Real-word mistakes aren't caught** (their/there). Use Rephrase for those.
 - **The first word after you click somewhere** may be skipped in some apps.
-- **No ready-made download yet.** You build it with `build.sh`.
 
 ## Uninstall
 
@@ -161,7 +165,7 @@ Fixaro is a single Swift file (`Sources/main.swift`). The macOS spell checker sp
 
 - Windows version (in progress)
 - Catching real-word mistakes (their/there)
-- Signed, ready-to-run download
+- Signed and notarized by Apple, so macOS opens it without the extra step
 
 ## Contributing
 
