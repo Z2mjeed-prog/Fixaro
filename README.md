@@ -1,6 +1,10 @@
-# Fixaro
+<p align="center">
+  <img src="docs/icon.png" width="112" alt="Fixaro icon">
+</p>
 
-**Private grammar fixing and rewriting for every app on your Mac. Your text never leaves your computer.**
+<h1 align="center">Fixaro</h1>
+
+<p align="center"><b>Private grammar fixing and rewriting for every app on your Mac.<br>Your text never leaves your computer.</b></p>
 
 Online writing assistants send what you write to their servers. Fixaro doesn't: its AI runs on your own Mac, so you can use it on confidential emails, client details, contracts and reports. Select text, press **⌃⌥R**, and get correct grammar in the style you choose. While you type, it fixes typos too.
 
