@@ -1764,7 +1764,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         let shortTitle = chosen.title.components(separatedBy: " (").first ?? chosen.title
         showBubble(yourWords == nil ? "Rewriting · \(shortTitle)…" : "Rewriting…", busy: true, near: selectionPoint())
         let task: String
-        if let t = yourWords {
+        // Your own words, typed in the box or saved as a style, are followed in full, like an instruction
+        if let t = yourWords ?? (chosen.key.hasPrefix("custom:") ? chosen.instruction : nil) {
             task = "Rewrite it following this instruction from the writer: \"\(t)\". Apart from what that instruction asks for, keep the original meaning, facts, names and numbers, and do not add anything new."
         } else {
             task = "\(chosen.instruction) Keep the original meaning, facts, names and numbers, and keep everything the writer said, and do not add anything new (no opinions, hedges or extra sentences)."
