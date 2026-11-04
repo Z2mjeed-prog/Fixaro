@@ -3,3 +3,4 @@ build/
 tools/bench.txt
 .DS_Store
 *.bak
+dist/

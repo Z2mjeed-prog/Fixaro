@@ -1,0 +1,42 @@
+name: Release
+
+# Push a tag like v1.1.0 and GitHub builds Fixaro and attaches Fixaro-1.1.0.dmg and .zip to a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use the newest Xcode (for Apple Intelligence support)
+        run: |
+          XC="$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)"
+          sudo xcode-select -s "$XC"
+          xcrun swiftc --version
+
+      - name: Build the app, .dmg and .zip
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then bash scripts/package.sh "$GITHUB_REF_NAME"; else bash scripts/package.sh; fi
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip \
+            --title "Fixaro ${GITHUB_REF_NAME#v}" \
+            --notes "Download **Fixaro-${GITHUB_REF_NAME#v}.dmg**, open it, and drag Fixaro into Applications. See the [install steps](https://github.com/${{ github.repository }}#install)."
+
+      - name: Keep the build (manual runs)
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fixaro
+          path: dist/

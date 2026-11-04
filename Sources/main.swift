@@ -423,6 +423,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         set { defaults.set(newValue, forKey: "serverURL") }
     }
     var downloadStatus: String?
+    var aiReachable = false                           // the AI app answered (it may still have no models)
     var lastModelRefresh = Date.distantPast
 
     var rephraseModelSetting: String? {
@@ -538,7 +539,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func refreshEngines() async {
         appleOK = appleAvailable()
-        ollamaModels = await Ollama.listModels() ?? []
+        let fetched = await Ollama.listModels()
+        aiReachable = fetched != nil
+        ollamaModels = fetched ?? []
         if ollamaModel == nil || !ollamaModels.contains(where: { $0.name == ollamaModel }) {
             ollamaModel = pickDefaultModel(ollamaModels)
         }
@@ -563,7 +566,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Re-read the model list (cheap): new downloads appear in the menu without restarting.
     func refreshModelList() async {
         lastModelRefresh = Date()
-        let ms = await Ollama.listModels() ?? []
+        let fetched = await Ollama.listModels()
+        aiReachable = fetched != nil
+        let ms = fetched ?? []
         let names = ms.map(\.name)
         guard names != ollamaModels.map(\.name) else { return }
         ollamaModels = ms
@@ -2124,15 +2129,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         welcomeAXDetail.stringValue = ax
             ? "Done. Fixaro can now fix and rewrite text in your apps."
             : "Lets Fixaro read and replace text in other apps. Click Allow…, then turn Fixaro on in the list."
+        if Date().timeIntervalSince(lastModelRefresh) > 3 { Task { await self.refreshModelList() } }
         let ai = !ollamaModels.isEmpty || appleOK
-        setWelcomeStatus(welcomeAIIcon, ok: ai, warn: !ai)
-        welcomeAIButton.isHidden = ai
+        setWelcomeStatus(welcomeAIIcon, ok: ai, warn: !ai && downloadStatus == nil)
+        let rec = recommendedModel()
         if !ollamaModels.isEmpty {
+            welcomeAIButton.isHidden = true
             welcomeAIDetail.stringValue = "\(Ollama.displayName) is running. Typos: \(ollamaModel ?? "none") · Rephrasing: \(rephraseModelSetting ?? ollamaModel ?? "none")"
         } else if appleOK {
+            welcomeAIButton.isHidden = true
             welcomeAIDetail.stringValue = "Using Apple Intelligence on this Mac."
+        } else if let status = downloadStatus {
+            welcomeAIButton.isHidden = true
+            welcomeAIDetail.stringValue = status
+        } else if aiReachable {
+            welcomeAIButton.isHidden = false
+            welcomeAIButton.title = "Download"
+            welcomeAIButton.action = #selector(welcomeDownloadModel)
+            welcomeAIDetail.stringValue = "Ollama is running. Download \(rec.name) (\(rec.size)), the best fit for this Mac's memory."
         } else {
-            welcomeAIDetail.stringValue = "Install Ollama, then run “ollama pull qwen3.5:4b” in Terminal. Fixaro finds it within seconds."
+            welcomeAIButton.isHidden = false
+            welcomeAIButton.title = "Get Ollama"
+            welcomeAIButton.action = #selector(welcomeGetOllama)
+            welcomeAIDetail.stringValue = "Install Ollama (free) and open it. Fixaro finds it within seconds and offers a model to download."
         }
     }
 
@@ -2144,6 +2163,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func welcomeGetOllama() {
         if let url = URL(string: "https://ollama.com/download") { NSWorkspace.shared.open(url) }
     }
+
+    @objc func welcomeDownloadModel() { startDownload(recommendedModel().name) }
 
     @objc func welcomeDone() {
         welcomed = true
@@ -2311,6 +2332,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !name.contains(" ") else { NSSound.beep(); return }
+        startDownload(name)
+    }
+
+    func startDownload(_ name: String) {
+        guard downloadStatus == nil else { return }
         downloadStatus = "Downloading \(name)…"
         logLine("download: \(name) started")
         Task {
@@ -2320,6 +2346,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if !ok { NSSound.beep() }
             await self.refreshModelList()
         }
+    }
+
+    /// The model to start with, by this Mac's memory (tested in tools/bench.py).
+    func recommendedModel() -> (name: String, size: String) {
+        let gb = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
+        return gb >= 15 ? ("qwen3.5:4b", "4 GB") : ("nemotron-3-nano:4b", "2.9 GB")
     }
 
     // MARK: Turning Fixaro off in specific apps
