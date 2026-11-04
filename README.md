@@ -55,7 +55,7 @@ Fixaro needs **Accessibility** permission. That's the only way a Mac app can see
 
    | Your Mac's memory | Word fixes | Rephrasing | Commands |
    |---|---|---|---|
-   | **8 GB** | qwen3.5:2b | qwen3.5:2b | `ollama pull qwen3.5:2b` |
+   | **8 GB** | nemotron-3-nano:4b | nemotron-3-nano:4b | `ollama pull nemotron-3-nano:4b` |
    | **16 GB** | qwen3.5:4b | qwen3.5:4b | `ollama pull qwen3.5:4b` |
    | **18 GB or more** | qwen3.5:4b | gemma4:e4b | `ollama pull qwen3.5:4b`<br>`ollama pull gemma4:e4b` |
 
@@ -115,20 +115,22 @@ What that means in practice:
 
 ### Suggested models
 
-**Tested** on an M-series Mac with 18 GB of memory:
+**Tested** with `tools/bench.py` on an M-series Mac with 18 GB of memory. Each model got 46 typos: 18 easy ones, and 28 where the right fix depends on the sentence ("money **frim** the bank" vs "new **frim** policy").
 
-| Model | Size | Best for | Typos fixed | Time per word | Rephrasing |
-|---|---|---|---|---|---|
-| **qwen3.5:4b** | 4.0 GB | **Word fixes** (default) | **18/18** | 0.21 s | Good |
-| qwen3.5:2b | 3.1 GB | Word fixes on 8 GB Macs | 17/18 | 0.12 s | OK |
-| **gemma4:e4b** | 9.6 GB | **Rephrasing** on 18 GB+ | **18/18** | 0.36 s | **Best** |
+| Model | Size | Best for | Typos fixed | Need the sentence | Time per word | Rephrasing |
+|---|---|---|---|---|---|---|
+| **qwen3.5:4b** | 4.0 GB | **Word fixes** (default) | **46/46** | **28/28** | 0.21 s | Good, but sometimes adds small details |
+| **gemma4:e4b** | 9.6 GB | **Rephrasing** on 18 GB+ | 45/46 | 27/28 | 0.36 s | **Best:** the only one that really changes the tone |
+| **nemotron-3-nano:4b** | 2.9 GB | **Word fixes on 8 GB Macs** | 43/46 | 25/28 | 0.20 s | Good, stays close to your words |
+| qwen3.5:2b | 3.1 GB | Fastest | 39/46 | 22/28 | 0.12 s | OK, sometimes adds details |
+| granite4.2:3b | 2.2 GB | Smallest | 39/46 | 21/28 | 0.15 s | OK, one grammar slip |
 
-**Worth trying** (newer models, not tested with Fixaro yet):
+All five fixed nearly every easy typo, kept every name and number when rephrasing, and rewrote questions instead of answering them. The differences show up when the sentence matters, and in how well each one writes.
+
+**Worth trying** (not tested with Fixaro yet):
 
 | Model | Size | Try it for | Why |
 |---|---|---|---|
-| `granite4.2:3b` | 2.2 GB | Word fixes | Small, recent model from IBM |
-| `nemotron-3-nano:4b` | 2.9 GB | Word fixes | Recent model from NVIDIA |
 | `lfm3:1.7b` | under 2 GB | Word fixes on 8 GB Macs | Very small and fast |
 | `ministral-3:3b` | 3.0 GB | Word fixes | Small model from Mistral |
 | `phi4-mini` | 2.5 GB | Word fixes | Older, well-known |
@@ -146,7 +148,7 @@ If you have **32 GB or more**, larger models (like `gemma4:26b` or `qwen3.6:27b`
 
 ### Model tips
 
-- **Test before you choose.** Run `python3 tools/bench.py` to test every model you've installed, or name a few: `python3 tools/bench.py qwen3.5:4b granite4.2:3b`. It checks 46 typos (28 of them need the sentence to get right) and 5 rephrase jobs, and shows how fast each model is.
+- **Test before you choose.** Run `python3 tools/bench.py` to test every model you've installed, or name a few: `python3 tools/bench.py qwen3.5:4b nemotron-3-nano:4b`. It checks 46 typos (28 of them need the sentence to get right) and 5 rephrase jobs, and shows how fast each model is.
 - **Check the log** (menu → **Open log**). Each fix says which model made it and how long it took:
   - Lots of **"LLM too slow"**: your word-fix model is too big for your Mac. Pick a smaller one.
   - Lots of **"LLM gave no usable answer"**: the model is chatty instead of answering with one word. Try another.

@@ -37,10 +37,11 @@ EASY = [
 ]
 
 # Context: the right fix depends on the words around it (the first option is often wrong).
+# "a|b" means either answer is right.
 CONTEXT = [
     ("the money ", "frim", " the bank", ["firm", "from", "fir", "film"], "from"),
     ("the new ", "frim", " policy", ["from", "firm", "fir", "film"], "firm"),
-    ("I need to ", "fil", " the form", ["file", "fill", "fail", "foil", "fit"], "fill"),
+    ("I need to ", "fil", " the form", ["file", "fill", "fail", "foil", "fit"], "fill|file"),   # both are fine English
     ("Please ", "fil", " the report in the shared folder", ["fill", "file", "fail", "foil"], "file"),
     ("We ", "wnet", " to the office", ["want", "went", "wet", "net"], "went"),
     ("I ", "wnat", " to go home", ["went", "want", "what", "gnat"], "want"),
@@ -172,9 +173,10 @@ def test_model(m, say):
             got = clean_word(generate(m, for_model(WORD_SYSTEM, m), prompt, 24, timeout=30))
             dt = time.time() - t
             times.append(dt)
-            if got.lower() == want.lower() and dt <= LLM_TIMEOUT:
+            right = got.lower() in want.lower().split("|")
+            if right and dt <= LLM_TIMEOUT:
                 ok += 1
-            elif got.lower() == want.lower():
+            elif right:
                 misses.append(f"{typo} → {got} (right, but too slow: {dt:.1f} s)")
             else:
                 misses.append(f"{before}[{typo}]{after} → {got!r} (wanted {want})")
