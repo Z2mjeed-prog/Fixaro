@@ -6,7 +6,8 @@ DIR="$(pwd)"
 APP="Fixaro"
 BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$DIR/Info.plist")"
 BUILD="$DIR/build/$APP.app"
-DEST="$HOME/Applications/$APP.app"
+# Update the copy you already have: /Applications if you moved it there, else ~/Applications
+if [ -d "/Applications/$APP.app" ]; then DEST="/Applications/$APP.app"; else DEST="$HOME/Applications/$APP.app"; fi
 LOG="$HOME/Library/Logs/$APP.log"
 # For development: FIXARO_DEV_LOG_DIR=/some/folder bash build.sh  (log goes there instead)
 if [ -n "$FIXARO_DEV_LOG_DIR" ]; then LOG="$FIXARO_DEV_LOG_DIR/fixaro.log"; fi
@@ -56,9 +57,9 @@ if ! xcrun swiftc -O -swift-version 5 -target "$(uname -m)-apple-macos$OSVER" -s
 fi
 codesign --force --sign - "$BUILD" >/dev/null 2>&1 || { echo "Signing failed"; exit 1; }
 
-echo "Installing to ~/Applications ..."
+echo "Installing to ${DEST%/*} ..."
 pkill -x "$APP" 2>/dev/null; sleep 1
-mkdir -p "$HOME/Applications"
+mkdir -p "${DEST%/*}"
 rm -rf "$DEST"
 cp -R "$BUILD" "$DEST"
 # A rebuilt app needs fresh permission; this clears Fixaro's old entry only.
