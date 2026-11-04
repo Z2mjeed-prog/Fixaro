@@ -29,7 +29,7 @@ SDK="$(xcrun --sdk macosx --show-sdk-path)"
 if TAGS="$(curl -s --max-time 2 http://127.0.0.1:11434/api/tags)"; then
   echo "Ollama: running"
   MEM_GB=$(( $(sysctl -n hw.memsize) / 1073741824 ))
-  if [ "$MEM_GB" -ge 18 ]; then REC="qwen3.5:4b gemma4:e4b"; elif [ "$MEM_GB" -ge 16 ]; then REC="qwen3.5:4b"; else REC="qwen3.5:2b"; fi
+  if [ "$MEM_GB" -ge 18 ]; then REC="qwen3.5:4b gemma4:e4b"; elif [ "$MEM_GB" -ge 16 ]; then REC="qwen3.5:4b"; else REC="nemotron-3-nano:4b"; fi
   for m in $REC; do
     echo "$TAGS" | grep -q "\"$m\"" || echo "   suggested for your ${MEM_GB} GB Mac:  ollama pull $m   (any model works; see README)"
   done
