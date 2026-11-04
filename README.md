@@ -19,6 +19,10 @@ Fixaro fixes typos as you type, in any app, using an AI model that runs on your 
 - **Rephrases on demand.** Select text, press **⌃⌥R** (Control-Option-R), and it's rewritten in place. Styles: Natural, Professional, Shorter, Friendly.
 
   <img src="docs/demo-rephrase.gif" width="700" alt="The sentence 'we was to busy to finish it yesterday' is selected, Control-Option-R is pressed, and it becomes 'We were too busy to finish it yesterday.'">
+
+  Works in any app, including your email. Here's a casual draft in Apple Mail, rewritten with the **Professional** style:
+
+  <img src="docs/demo-email.gif" width="700" alt="A casual email draft in Apple Mail, 'Hey, can you send me the sales numbers by tomorrow? ... thanks', is selected, Control-Option-R is pressed, and it becomes 'Could you please send me the sales numbers by tomorrow? I require them for the meeting on Thursday. Please let me know if this presents any issues. Thank you.'">
 - **Learns from you.**
   - Undo the same fix twice, and Fixaro leaves that word alone for good.
   - Keep a fix twice, and it's applied instantly next time.
