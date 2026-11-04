@@ -131,7 +131,21 @@ Fixaro opens a welcome window:
 
 That's it. The **F** in your menu bar means Fixaro is on. Select a sentence anywhere and press **⌃⌥R** to try it.
 
-On a Mac with **18 GB or more**, also get `gemma4:e4b` for better rephrasing (menu bar → Settings → **Download a model…**). Any model works: see [Choosing models](docs/MODELS.md).
+### Which model should I use?
+
+It depends on your Mac's memory (Apple menu → **About This Mac** → Memory):
+
+| Your Mac's memory | Fixing typos | Rephrasing |
+|---|---|---|
+| **8 GB** | `nemotron-3-nano:4b` (2.9 GB) | the same model |
+| **16 GB** | `qwen3.5:4b` (4 GB) | the same model |
+| **18 GB or more** | `qwen3.5:4b` (4 GB) | `gemma4:e4b` (9.6 GB): better writing |
+
+- **The welcome window's Download button** gets the typo model for your Mac.
+- **To add the rephrasing model** on 18 GB or more: menu bar → **Settings → Download a model…**, then type `gemma4:e4b`.
+- **Fixaro picks the right one for each job automatically.** You can change them any time under **Settings → Word-fix model / Rephrase model**.
+
+Want to try others? See the [model test results](docs/MODELS.md).
 
 
 ## Using it
