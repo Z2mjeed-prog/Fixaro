@@ -230,6 +230,27 @@ enum Ollama {
         return nil
     }
 
+    /// Models Ollama has in memory right now.
+    static func loadedModels() async -> [String] {
+        guard kind == .ollama, let url = URL(string: base + "/api/ps") else { return [] }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 2
+        guard let result = try? await URLSession.shared.data(for: req),
+              let obj = try? JSONSerialization.jsonObject(with: result.0) as? [String: Any] else { return [] }
+        return ((obj["models"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }
+    }
+
+    /// Changes how long a loaded model stays in memory ("0s" frees it now). Only call for loaded models.
+    static func setKeepAlive(_ model: String, _ keepAlive: String) async {
+        guard kind == .ollama, let url = URL(string: base + "/api/generate") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 10
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "keep_alive": keepAlive])
+        _ = try? await URLSession.shared.data(for: req)
+    }
+
     /// OpenAI-compatible chat API (LM Studio, llama.cpp, MLX servers, Jan, …).
     static func chat(model: String, system: String, prompt: String, maxTokens: Int, timeout: Double) async -> String? {
         guard let url = URL(string: base + "/chat/completions") else { return nil }
@@ -596,7 +617,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
             logLine("Apple Intelligence warm-up: \(r?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "no reply") in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
         case .ollama:
             guard let m = ollamaModel else { return }
-            let r = await Ollama.generate(model: m, system: systemFor(systemPrompt, model: m), prompt: sample, numPredict: 24)
+            let r = await Ollama.generate(model: m, system: systemFor(systemPrompt, model: m), prompt: sample, numPredict: 24,
+                                          keepAlive: wordFixKeepAlive)
             logLine("\(Ollama.displayName) \(m) warm-up: \(r?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "no reply") in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
         default: break
         }
@@ -1198,7 +1220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
                 raw = await appleGenerate(prompt)
             } else if engine == .ollama, let model {
                 raw = await Ollama.generate(model: model, system: systemFor(systemPrompt, model: model),
-                                            prompt: prompt, numPredict: 24)
+                                            prompt: prompt, numPredict: 24, keepAlive: wordFixKeepAlive)
             }
             let picked = raw.flatMap { self.validate($0, original: core, guesses: guesses) }
             if picked == nil, let raw {
@@ -1405,6 +1427,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
 
     var rephrasing = false
     var lastRephraseText = "none yet"
+    /// How long an AI model stays in memory after you last use it: "0s", "5m", "15m" or "30m"
+    var freeMemoryAfter: String {
+        get { defaults.string(forKey: "freeMemoryAfter") ?? "5m" }
+        set { defaults.set(newValue, forKey: "freeMemoryAfter") }
+    }
+    /// Rephrasing follows the setting exactly.
+    var rephraseKeepAlive: String { freeMemoryAfter }
+    /// Typo fixing needs its model ready while you type, so it stays at least 5 minutes.
+    var wordFixKeepAlive: String { ["0s", "5m"].contains(freeMemoryAfter) ? "5m" : freeMemoryAfter }
+
     /// Your usual style: the one ⌃⌥R uses (ticked under Rephrase style)
     var rephraseStyle: String {
         get { defaults.string(forKey: "rephraseStyle") ?? "natural" }
@@ -1779,7 +1811,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         } else if let m = rephraseModel {
             let budget = min(2048, max(128, original.count))
             raw = await Ollama.generate(model: m, system: systemFor(system, model: m), prompt: prompt,
-                                        numPredict: budget, timeout: 90, keepAlive: "15m")
+                                        numPredict: budget, timeout: 90, keepAlive: rephraseKeepAlive)
         }
         guard let cleaned = raw.flatMap({ cleanRephrase($0, original: original) }) else {
             restorePasteboard(pb, saved)
@@ -2064,6 +2096,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         if serverKind == .ollama {
             if let s = downloadStatus { menu.addItem(label(s)) }
             else { menu.addItem(item("Download a model…", #selector(downloadModel))) }
+
+            let fm = NSMenu()
+            let keeps: [(String, String)] = [("0s", "Right away (slower rewrites)"), ("5m", "After 5 minutes"),
+                                             ("15m", "After 15 minutes"), ("30m", "After 30 minutes")]
+            for (value, title) in keeps {
+                let it = item(title, #selector(selectFreeMemory(_:)))
+                it.representedObject = value
+                it.state = freeMemoryAfter == value ? .on : .off
+                fm.addItem(it)
+            }
+            let current = keeps.first { $0.0 == freeMemoryAfter }?.1.replacingOccurrences(of: " (slower rewrites)", with: "") ?? "After 5 minutes"
+            let fi = NSMenuItem(title: "Free AI memory: \(current.prefix(1).lowercased() + current.dropFirst())", action: nil, keyEquivalent: "")
+            fi.submenu = fm
+            menu.addItem(fi)
         }
         // Where the AI runs: Ollama, or another local AI app
         let serverMenu = NSMenu()
@@ -2400,6 +2446,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         logLine("Ollama model set to \(ollamaModel ?? "none")")
         Task { await self.warmUp() }
     }
+    /// Applies the new time to models already in memory, so "Right away" frees them now.
+    @objc func selectFreeMemory(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String else { return }
+        freeMemoryAfter = value
+        logLine("Free AI memory after: \(value)")
+        let typoModel = fixTyping ? ollamaModel : nil
+        let rephrase = rephraseModelSetting ?? ollamaModel
+        let wordKeep = wordFixKeepAlive, rephraseKeep = rephraseKeepAlive
+        Task {
+            for loaded in await Ollama.loadedModels() {
+                if loaded == rephrase && loaded != typoModel {
+                    await Ollama.setKeepAlive(loaded, rephraseKeep)
+                } else if loaded == typoModel {
+                    await Ollama.setKeepAlive(loaded, wordKeep)
+                }
+            }
+        }
+    }
+
     @objc func selectRephraseModel(_ sender: NSMenuItem) {
         rephraseModelSetting = sender.representedObject as? String
         logLine("Rephrase model set to \(rephraseModelSetting ?? "none")")
