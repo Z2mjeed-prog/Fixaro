@@ -142,6 +142,7 @@ It depends on your Mac's memory (Apple menu → **About This Mac** → Memory):
 - **The welcome window's Download button** gets a small model that does both jobs.
 - **For the best rephrasing,** add `qwen3.5:9b`: menu bar → **Settings → Download a model…**. Then pick it under **Settings → Rephrase model**.
 - **You can change models any time** under **Settings → Rephrase model / Word-fix model**.
+- **Fixaro frees the AI's memory 5 minutes after you last use it.** For a Mac that feels tight, pick **Right away** under **Settings → Free AI memory**. Each rewrite then takes a few seconds longer.
 
 Want to try others? See the [model test results](docs/MODELS.md).
 
@@ -151,6 +152,7 @@ Want to try others? See the [model test results](docs/MODELS.md).
 | You want to… | Do this |
 |---|---|
 | Fix typos as you type | Menu → tick **Fix typos as I type**. Fixes happen after Space or Enter |
+| Free up memory | Menu → **Settings → Free AI memory** |
 | Undo a fix | Backspace right after it, or **⌃⌥Z** |
 | Rephrase text | Select it, press **⌃⌥R** |
 | Choose a style, or say how to rewrite it | Select it, press **⌃⌥S** |
