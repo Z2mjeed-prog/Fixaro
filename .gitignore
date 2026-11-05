@@ -4,3 +4,5 @@ tools/bench.txt
 .DS_Store
 *.bak
 dist/
+tools/rephrase-report.html
+tools/__pycache__/
