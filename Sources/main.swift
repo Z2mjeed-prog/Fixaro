@@ -1766,7 +1766,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         let task: String
         // Your own words, typed in the box or saved as a style, are followed in full, like an instruction
         if let t = yourWords ?? (chosen.key.hasPrefix("custom:") ? chosen.instruction : nil) {
-            task = "Rewrite it following this instruction from the writer: \"\(t)\". Apart from what that instruction asks for, keep the original meaning, facts, names and numbers, and do not add anything new."
+            task = "Rewrite it following this instruction from the writer: \"\(t)\". Do everything the instruction asks. Apart from that, keep the original meaning, facts, names and numbers."
         } else {
             task = "\(chosen.instruction) Keep the original meaning, facts, names and numbers, and keep everything the writer said, and do not add anything new (no opinions, hedges or extra sentences)."
         }
@@ -1821,9 +1821,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
            (s.hasPrefix("\"") && s.hasSuffix("\"")) || (s.hasPrefix("“") && s.hasSuffix("”")) {
             s = String(s.dropFirst().dropLast())
         }
+        s = dropOpener(s, original: original)
         guard !s.isEmpty, s.count <= original.count * 4 + 100 else { return nil }
         let trailingWS = String(Array(original.reversed().prefix(while: { $0.isWhitespace })).reversed())
         return s + trailingWS
+    }
+
+    /// Removes an opener some models add, such as "Here's your friendly reminder: " or "Sure! ".
+    func dropOpener(_ text: String, original: String) -> String {
+        let low = original.lowercased()
+        guard !low.hasPrefix("here"), !low.hasPrefix("sure") else { return text }
+        let pattern = #"^((here(’|')s|here is)[^:\n]{0,50}:|(sure|certainly|of course)[!,.]?)\s*"#
+        guard let m = text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) else { return text }
+        let rest = text[m.upperBound...]
+        guard let first = rest.first else { return text }
+        return first.uppercased() + rest.dropFirst()
     }
 
     func savePasteboard(_ pb: NSPasteboard) -> [[(NSPasteboard.PasteboardType, Data)]] {
