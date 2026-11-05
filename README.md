@@ -141,15 +141,15 @@ That's it. The **F** in your menu bar means Fixaro is on. Select a sentence anyw
 
 It depends on your Mac's memory (Apple menu → **About This Mac** → Memory):
 
-| Your Mac's memory | Fixing typos | Rephrasing |
+| Your Mac's memory | Rephrasing | Fixing typos (if you turn it on) |
 |---|---|---|
 | **8 GB** | `nemotron-3-nano:4b` (2.9 GB) | the same model |
-| **16 GB** | `qwen3.5:4b` (4 GB) | the same model |
-| **18 GB or more** | `qwen3.5:4b` (4 GB) | `gemma4:e4b` (9.6 GB): better writing |
+| **16 GB** | `qwen3.5:9b` (7.6 GB): best writing in our tests | `qwen3.5:4b` (4 GB), and use it for rephrasing too, to save memory |
+| **18 GB or more** | `qwen3.5:9b` (7.6 GB): best writing in our tests | `qwen3.5:4b` (4 GB) |
 
-- **The welcome window's Download button** gets the typo model for your Mac.
-- **To add the rephrasing model** on 18 GB or more: menu bar → **Settings → Download a model…**, then type `gemma4:e4b`.
-- **Fixaro picks the right one for each job automatically.** You can change them any time under **Settings → Word-fix model / Rephrase model**.
+- **The welcome window's Download button** gets a small model that does both jobs.
+- **For the best rephrasing,** add `qwen3.5:9b`: menu bar → **Settings → Download a model…**. Then pick it under **Settings → Rephrase model**.
+- **You can change models any time** under **Settings → Rephrase model / Word-fix model**.
 
 Want to try others? See the [model test results](docs/MODELS.md).
 
