@@ -120,14 +120,6 @@ It downloads Fixaro, builds it on your Mac, puts it in the Applications folder i
 
 To update later: `cd Fixaro && git pull && bash build.sh`
 
-<details>
-<summary>Prefer a download? Use the .dmg instead</summary>
-
-1. Download **Fixaro-x.y.z.dmg** from the [latest release](https://github.com/Z2mjeed-prog/Fixaro/releases/latest), under **Assets**. The "Source code" files are not the app.
-2. Double-click it and drag the Fixaro icon onto the Applications folder.
-3. Open Fixaro from Applications. The first time only, macOS says it can't check Fixaro: click **Done**, open **System Settings → Privacy & Security**, and click **Open Anyway**.
-</details>
-
 ### 3. Finish in the welcome window
 
 Fixaro opens a welcome window:
