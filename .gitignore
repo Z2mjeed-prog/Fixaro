@@ -6,3 +6,4 @@ tools/bench.txt
 dist/
 tools/rephrase-report.html
 tools/__pycache__/
+windows/build/
