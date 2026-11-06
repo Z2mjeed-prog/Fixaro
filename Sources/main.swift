@@ -1699,7 +1699,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         }
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Add a rephrase style"
+        alert.messageText = "Add a style"
         alert.informativeText = "Give it a short name, and describe how your text should sound. It will appear when you press ⌃⌥S."
         let name = NSTextField(frame: NSRect(x: 0, y: 34, width: 360, height: 24))
         name.placeholderString = "Name, for example: Board report"
@@ -1794,7 +1794,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
             }
         }
         let shortTitle = chosen.title.components(separatedBy: " (").first ?? chosen.title
-        showBubble(yourWords == nil ? "Rewriting · \(shortTitle)…" : "Rewriting…", busy: true, near: selectionPoint())
+        showBubble(yourWords != nil ? "Rewriting…" : (choose ? "Rewriting · \(shortTitle)…" : "Polishing…"), busy: true, near: selectionPoint())
         let task: String
         // Your own words, typed in the box or saved as a style, are followed in full, like an instruction
         if let t = yourWords ?? (chosen.key.hasPrefix("custom:") ? chosen.instruction : nil) {
@@ -1990,12 +1990,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         menu.addItem(.separator())
 
         // Rephrase
-        let reph = item("Rephrase selected text", #selector(rephraseFromMenu))
+        let reph = item("Polish selected text", #selector(rephraseFromMenu))
         reph.keyEquivalent = "r"
         reph.keyEquivalentModifierMask = [.control, .option]
         reph.image = symbol("wand.and.stars")
         menu.addItem(reph)
-        let rephAs = item("Rephrase as…", #selector(rephraseChooseFromMenu))
+        let rephAs = item("Rewrite as…", #selector(rephraseChooseFromMenu))
         rephAs.keyEquivalent = "s"
         rephAs.keyEquivalentModifierMask = [.control, .option]
         menu.addItem(rephAs)
@@ -2025,7 +2025,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
 
         // What happened last
         if fixTyping { menu.addItem(label("Last fix: \(lastFixText)")) }
-        menu.addItem(label("Last rephrase: \(lastRephraseText)"))
+        menu.addItem(label("Last rewrite: \(lastRephraseText)"))
         menu.addItem(.separator())
 
         let settings = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
@@ -2043,7 +2043,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
     /// Your usual style (the one ⌃⌥R uses); add and edit your own.
     func styleMenuItem() -> NSMenuItem {
         let sm = NSMenu()
-        sm.addItem(NSMenuItem.sectionHeader(title: "⌃⌥R uses"))
+        sm.addItem(NSMenuItem.sectionHeader(title: "Polish (⌃⌥R) uses"))
         for (i, s) in allStyles().enumerated() {
             if i == builtInStyles.count { sm.addItem(.separator()) }
             let it = item(s.title, #selector(selectStyle(_:)))
@@ -2054,7 +2054,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         sm.addItem(.separator())
         sm.addItem(item("Add a style…", #selector(addStyle)))
         sm.addItem(item("Edit my styles…", #selector(editStyles)))
-        let title = "Rephrase style: \(style(for: rephraseStyle).title)"
+        let title = "Usual style: \(style(for: rephraseStyle).title)"
         let si = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         si.submenu = sm
         return si
@@ -2075,9 +2075,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
                 it.state = m.name == ollamaModel ? .on : .off
                 mm.addItem(it)
             }
-            let mi = NSMenuItem(title: "Word-fix model: \(ollamaModel ?? "none")", action: nil, keyEquivalent: "")
+            let mi = NSMenuItem(title: "Typo model: \(ollamaModel ?? "none")", action: nil, keyEquivalent: "")
             mi.submenu = mm
-            menu.addItem(mi)
 
             let rm = NSMenu()
             for m in ollamaModels {
@@ -2087,9 +2086,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
                 it.state = m.name == rephraseModelSetting ? .on : .off
                 rm.addItem(it)
             }
-            let ri = NSMenuItem(title: "Rephrase model: \(rephraseModelSetting ?? "none")", action: nil, keyEquivalent: "")
+            let ri = NSMenuItem(title: "AI model: \(rephraseModelSetting ?? ollamaModel ?? "none")", action: nil, keyEquivalent: "")
             ri.submenu = rm
             menu.addItem(ri)
+            if fixTyping { menu.addItem(mi) }      // the typo model only matters when typo fixing is on
         } else {
             menu.addItem(label("No models found. Is \(Ollama.displayName) running?"))
         }
@@ -2225,7 +2225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
 
         let keys = NSTextField(labelWithString: "Shortcuts")
         keys.font = .boldSystemFont(ofSize: 13)
-        let k1 = NSTextField(labelWithString: "⌃⌥R    Rephrase the selected text in your usual style")
+        let k1 = NSTextField(labelWithString: "⌃⌥R    Polish the selected text in your usual style")
         let k3 = NSTextField(labelWithString: "⌃⌥S    Pick a style, or type how to rewrite it")
         let k2 = NSTextField(labelWithString: "Typo fixing as you type is off. Turn it on in the menu: Fix typos as I type")
         for k in [k1, k3, k2] { k.font = .systemFont(ofSize: 12); k.textColor = .secondaryLabelColor }
@@ -2317,7 +2317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         let rec = recommendedModel()
         if !ollamaModels.isEmpty {
             welcomeAIButton.isHidden = true
-            welcomeAIDetail.stringValue = "\(Ollama.displayName) is running. Typos: \(ollamaModel ?? "none") · Rephrasing: \(rephraseModelSetting ?? ollamaModel ?? "none")"
+            welcomeAIDetail.stringValue = "\(Ollama.displayName) is running · AI model: \(rephraseModelSetting ?? ollamaModel ?? "none")"
         } else if appleOK {
             welcomeAIButton.isHidden = true
             welcomeAIDetail.stringValue = "Using Apple Intelligence on this Mac."
@@ -2500,7 +2500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         if !onThisMac {
             let warn = NSAlert()
             warn.messageText = "Your text would leave this Mac"
-            warn.informativeText = "\(host) is not this Mac. Every word Fixaro checks and every text you rephrase would be sent there. Only continue if you trust that computer."
+            warn.informativeText = "\(host) is not this Mac. Every word Fixaro checks and every text you rewrite would be sent there. Only continue if you trust that computer."
             warn.addButton(withTitle: "Continue")
             warn.addButton(withTitle: "Cancel")
             guard warn.runModal() == .alertFirstButtonReturn else { return }

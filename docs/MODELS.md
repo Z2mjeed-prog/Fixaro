@@ -3,7 +3,7 @@
 **Any model works.** Fixaro lists every text model you've installed in Ollama, and you choose one for each job in the menu bar:
 
 - **Word-fix model:** runs on every typo, so pick something **small and fast** (about 4 GB or less).
-- **Rephrase model:** runs only when you press ⌃⌥R or ⌃⌥S, so a **bigger model** that writes better is fine, if your Mac has the memory. This is the one that matters most, since typo fixing is off unless you turn it on.
+- **AI model** (for Polish and Rewrite as…): runs only when you press ⌃⌥R or ⌃⌥S, so a **bigger model** that writes better is fine, if your Mac has the memory. This is the one that matters most, since typo fixing is off unless you turn it on.
 
 To get a new model, use **Download a model…** in the menu bar (or `ollama pull <name>` in Terminal). It shows up in the menu within seconds.
 
@@ -17,7 +17,7 @@ To get a new model, use **Download a model…** in the menu bar (or `ollama pull
 | **Memory** | Leaves more room for your other apps | Can slow other apps on smaller Macs |
 
 - **Word fixes have 1.5 seconds.** If the model hasn't answered by then, Fixaro uses the spell checker's first guess instead, which ignores the sentence. A model that's too big for your Mac quietly makes your fixes worse.
-- **Models stay loaded while you use them:** the word-fix model for 30 minutes after its last fix, the rephrase model for 15. Try to keep the total under about half your Mac's memory.
+- **Models stay loaded while you use them:** Fixaro frees a model's memory 5 minutes after you last use it (change it under **Settings → Free AI memory**). Try to keep what's loaded under about half your computer's memory.
 - **The first use after a break is slower** (a few seconds) while the model loads.
 
 ## Rephrase test
@@ -72,6 +72,6 @@ Fixaro also works with **LM Studio**, **Jan**, and **llama.cpp** or **MLX** serv
 
 1. Start the app's local server and load a model.
 2. In Fixaro's menu, choose **AI app** and pick it, or choose **Other app…** and enter its address (for example `http://localhost:1234/v1`).
-3. Pick your **Word-fix model** and **Rephrase model**.
+3. Pick your **AI model** (and **Typo model**, if typo fixing is on).
 
 If the address isn't on your Mac, Fixaro warns you first, because your text would then leave your computer. If it doesn't work with your app, please [open an issue](https://github.com/Z2mjeed-prog/Fixaro/issues).

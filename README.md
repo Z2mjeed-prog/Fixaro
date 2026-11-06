@@ -18,8 +18,8 @@ Select text in any app and press one shortcut. Fixaro fixes the grammar and rewr
 
 | | Mac | Windows |
 |---|---|---|
-| **Rewrite in your usual style** | Select text, press **⌃⌥R** | Select text, press **Ctrl + Alt + R** |
-| **Pick a style, or say how** | **⌃⌥S** | **Ctrl + Alt + S** |
+| **Polish:** fix the grammar, in your usual style | Select text, press **⌃⌥R** | Select text, press **Ctrl + Alt + R** |
+| **Rewrite as…:** pick a style, or say how | **⌃⌥S** | **Ctrl + Alt + S** |
 | **Undo** | **⌘Z** | **Ctrl + Z** |
 
 With **⌃⌥S** (**Ctrl + Alt + S** on Windows) a popup opens next to your text. Type how you want it, like *more formal, and ask for a reply by Sunday*, and press **Enter**. Or press a style's number.
@@ -51,7 +51,7 @@ It keeps your names, numbers and meaning, and never answers your text: a questio
 | **Shorter** | I just wanted to let you know that I will not be able to attend the meeting on Thursday because I have a doctor's appointment that I cannot move. | I cannot attend Thursday's meeting due to an unavoidable doctor's appointment. |
 | **Friendly** | Your payment of 450 SAR is overdue. Pay it by June 5 or your account will be suspended. | Just a friendly heads-up that your payment of 450 SAR is a little overdue. Could you please take care of it by June 5th? |
 
-**Make your own:** menu → **Rephrase style → Add a style…**, give it a name, and describe how it should sound, like *Customer reply: polite, warm and short*. It appears in the popup. Pick your usual style, the one the first shortcut uses, in the same menu.
+**Make your own:** menu → **Usual style → Add a style…**, give it a name, and describe how it should sound, like *Customer reply: polite, warm and short*. It appears in the Rewrite as… popup. Pick your usual style, the one Polish uses, in the same menu.
 
 ## Install
 
@@ -71,7 +71,7 @@ The **F** in your menu bar means it's on. To update: `cd Fixaro && git pull && b
 
 ### Windows (preview)
 
-You need **Windows 10 or 11**. The Windows version does rephrasing only.
+You need **Windows 10 or 11**. The Windows version does Polish and Rewrite as…, everything on this page.
 
 1. **Get [Ollama for Windows](https://ollama.com/download/windows)** and open it.
 2. **Install Fixaro:** open **PowerShell** (Start menu, type `PowerShell`) and paste:
@@ -85,12 +85,14 @@ To update, paste the same line again.
 
 ### Which model?
 
+**A better model gives better results.** Bigger models write more naturally and follow your instructions more closely, but they need more memory and take a little longer.
+
 | Your computer's memory | Best model |
 |---|---|
 | **8 GB** | `nemotron-3-nano:4b` (2.9 GB) |
 | **16 GB or more** | `qwen3.5:9b` (7.6 GB), the best writing in [our tests](docs/MODELS.md) |
 
-Download one from Fixaro's menu: **Settings → Download a model…**, then pick it under **Settings → Rephrase model**.
+Download one from Fixaro's menu: **Settings → Download a model…**, then pick it under **Settings → AI model**.
 
 ## Good to know
 
