@@ -94,6 +94,15 @@ To update, paste the same line again.
 
 Download one from Fixaro's menu: **Settings → Download a model…**, then pick it under **Settings → AI model**.
 
+## Mac extra: fix typos as you type
+
+**Off by default.** To turn it on, tick **Fix typos as I type** in Fixaro's menu. It corrects a misspelled word right after you press Space, using the words around it to pick the right fix ("money **frim** the bank" → *from*, "the new **frim** policy" → *firm*).
+
+- **It doesn't record your typing.** It looks at the word you just finished and the sentence around it, checks it with the Mac's spell checker and your local AI model, then forgets it. Nothing you type is saved or sent anywhere.
+- **What it keeps, on your Mac only:** a list of the fixes it made (just the misspelled word and its fix, like *frim → from*) and your list of words to leave alone.
+- **It never sees passwords.** macOS hides password fields from every app.
+- **Undo** a fix with Backspace right after it, or **⌃⌥Z**. If you turn it on, turn off macOS's own autocorrect so the two don't clash.
+
 ## Good to know
 
 - **Mac permission:** Fixaro needs **Accessibility** permission to read and replace text in other apps. If the menu bar icon shows ⚠ after an update, switch Fixaro off and on again under Accessibility.
