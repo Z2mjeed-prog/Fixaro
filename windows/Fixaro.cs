@@ -902,7 +902,7 @@ namespace Fixaro
                 else
                 {
                     tray.ShowBalloonTip(8000, "Fixaro is ready",
-                        "Select text in any app and press Ctrl+Alt+R to rewrite it, or Ctrl+Alt+S to choose how.", ToolTipIcon.Info);
+                        "Select text in any app and press Ctrl+Alt+R to polish it, or Ctrl+Alt+S to rewrite it your way.", ToolTipIcon.Info);
                 }
             }
         }
@@ -993,7 +993,7 @@ namespace Fixaro
                     }
                 }
 
-                bubble.ShowNear(title == "your instruction" ? "Rewriting" : "Rewriting · " + title.Split(new[] { " (" }, StringSplitOptions.None)[0], near, true);
+                bubble.ShowNear(title == "your instruction" ? "Rewriting" : !choose ? "Polishing" : "Rewriting · " + title.Split(new[] { " (" }, StringSplitOptions.None)[0], near, true);
                 var watch = Stopwatch.StartNew();
                 int budget = Math.Min(2048, Math.Max(128, original.Length));
                 var raw = await AI.Generate(model, Prompts.ForModel(system, model), Prompts.UserPrompt(original.Replace("\r\n", "\n")),
@@ -1095,13 +1095,13 @@ namespace Fixaro
             var header = new ToolStripMenuItem("Fixaro — " + (Paused ? "paused" : "on")) { Enabled = false };
             menu.Items.Add(header);
             menu.Items.Add(new ToolStripSeparator());
-            var reph = new ToolStripMenuItem("Rephrase selected text", null, (s, e) => { var _ = FromMenu(false); }) { ShortcutKeyDisplayString = "Ctrl+Alt+R" };
-            var rephAs = new ToolStripMenuItem("Rephrase as…", null, (s, e) => { var _ = FromMenu(true); }) { ShortcutKeyDisplayString = "Ctrl+Alt+S" };
+            var reph = new ToolStripMenuItem("Polish selected text", null, (s, e) => { var _ = FromMenu(false); }) { ShortcutKeyDisplayString = "Ctrl+Alt+R" };
+            var rephAs = new ToolStripMenuItem("Rewrite as…", null, (s, e) => { var _ = FromMenu(true); }) { ShortcutKeyDisplayString = "Ctrl+Alt+S" };
             reph.Enabled = rephAs.Enabled = !Paused;
             menu.Items.Add(reph);
             menu.Items.Add(rephAs);
             menu.Items.Add(StyleMenu());
-            menu.Items.Add(new ToolStripMenuItem("Last rephrase: " + lastRephrase) { Enabled = false });
+            menu.Items.Add(new ToolStripMenuItem("Last rewrite: " + lastRephrase) { Enabled = false });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(SettingsMenu());
             menu.Items.Add(new ToolStripMenuItem(Paused ? "Resume Fixaro" : "Pause Fixaro", null, (s, e) => TogglePause()));
@@ -1129,8 +1129,8 @@ namespace Fixaro
         ToolStripMenuItem StyleMenu()
         {
             var usual = Styles.Find(UsualStyle);
-            var root = new ToolStripMenuItem("Rephrase style: " + usual.Title);
-            root.DropDownItems.Add(new ToolStripMenuItem("Ctrl+Alt+R uses") { Enabled = false });
+            var root = new ToolStripMenuItem("Usual style: " + usual.Title);
+            root.DropDownItems.Add(new ToolStripMenuItem("Polish (Ctrl+Alt+R) uses") { Enabled = false });
             foreach (var st in Styles.All())
             {
                 var key = st.Key;
@@ -1169,7 +1169,7 @@ namespace Fixaro
             if (models.Count > 0)
             {
                 var current = RephraseModel();
-                var mm = new ToolStripMenuItem("Rephrase model: " + current);
+                var mm = new ToolStripMenuItem("AI model: " + current);
                 foreach (var m in models)
                 {
                     var name = m.Name;
@@ -1266,7 +1266,7 @@ namespace Fixaro
             downloadStatus = null;
             await RefreshModels();
             if (ok) Store.Set("rephraseModel", name);
-            tray.ShowBalloonTip(6000, "Fixaro", ok ? name + " is ready. Select text and press Ctrl+Alt+R." : "Couldn't download " + name + ". Check the name and your connection.",
+            tray.ShowBalloonTip(6000, "Fixaro", ok ? name + " is ready. Select text and press Ctrl+Alt+R to polish it." : "Couldn't download " + name + ". Check the name and your connection.",
                                 ok ? ToolTipIcon.Info : ToolTipIcon.Warning);
         }
 
