@@ -4,7 +4,7 @@
 
 <h1 align="center">Fixaro</h1>
 
-<p align="center"><b>Private grammar fixing and rewriting for every app on your Mac.<br>Your text never leaves your computer.</b></p>
+<p align="center"><b>Private grammar fixing and rewriting for every app on your Mac, and now on Windows.<br>Your text never leaves your computer.</b></p>
 
 Online writing assistants send what you write to their servers. Fixaro doesn't: its AI runs on your own Mac, so you can use it on confidential emails, client details, contracts and reports. Select text, press **⌃⌥R**, and get correct grammar in your usual style. Press **⌃⌥S** instead to pick a style or say exactly how you want it rewritten. It can also fix typos as you type, if you turn that on.
 
@@ -98,7 +98,7 @@ To change your usual style (the one ⌃⌥R uses), pick it under **Rephrase styl
 
 ## Install
 
-You need **macOS 14 or later**, on Apple Silicon or Intel. It takes about 5 minutes.
+You need **macOS 14 or later**, on Apple Silicon or Intel. It takes about 5 minutes. On a Windows PC? See [Windows](#on-windows-preview).
 
 ### 1. Get Ollama
 
@@ -146,6 +146,20 @@ It depends on your Mac's memory (Apple menu → **About This Mac** → Memory):
 
 Want to try others? See the [model test results](docs/MODELS.md).
 
+### On Windows (preview)
+
+The Windows version does rephrasing: **Ctrl + Alt + R** rewrites the selected text in your usual style, and **Ctrl + Alt + S** opens the popup to pick a style or type how you want it. Typo fixing as you type is Mac only. You need Windows 10 or 11.
+
+1. **Get Ollama** from [ollama.com/download/windows](https://ollama.com/download/windows), install it and open it.
+2. **Install Fixaro:** open **PowerShell** (Start menu → type `PowerShell` → Enter) and paste this line:
+   ```powershell
+   cd $env:USERPROFILE; iwr https://github.com/Z2mjeed-prog/Fixaro/archive/refs/heads/main.zip -OutFile fixaro.zip; Expand-Archive fixaro.zip . -Force; cmd /c Fixaro-main\windows\build.cmd
+   ```
+   It builds Fixaro with the C# compiler that comes with Windows, so there's nothing else to install. It adds Fixaro to the Start menu and starts it: look for the **F** icon near the clock (it may be under the **^** arrow).
+3. **Get a model:** click the **F** icon → **Settings → Download a model…**. It suggests one for your PC.
+
+Then select text in any app and press **Ctrl + Alt + R**. To update later, paste the same line again.
+
 
 ## Using it
 
@@ -176,6 +190,7 @@ Terminal and code editors are off by default. Fixaro also works with LM Studio, 
 - **English only.** Arabic and other non-Latin text is left alone.
 - **Real-word mistakes aren't caught** (their/there). Use Rephrase for those.
 - **The first word after you click somewhere** may be skipped in some apps.
+- **On Windows, rephrasing only.** Typo fixing as you type is Mac only.
 
 ## Uninstall
 
@@ -188,6 +203,12 @@ defaults delete io.github.z2mjeed-prog.fixaro; tccutil reset Accessibility io.gi
 ```
 
 It removes the app, your word list and styles, its settings, and its Accessibility permission. If you turned on **Start at login**, also remove Fixaro under **System Settings → General → Login Items**.
+
+**On Windows**, paste this into PowerShell:
+
+```powershell
+Stop-Process -Name Fixaro -ErrorAction SilentlyContinue; Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Programs\Fixaro", "$env:APPDATA\Fixaro", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Fixaro.lnk" -ErrorAction SilentlyContinue; Remove-ItemProperty HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name Fixaro -ErrorAction SilentlyContinue
+```
 
 ## How it works
 
@@ -202,7 +223,7 @@ Fixaro is a single Swift file (`Sources/main.swift`). The macOS spell checker sp
 
 ## Roadmap
 
-- Windows version (in progress)
+- Windows: a one-line installer that also gets Ollama, and a signed download
 - Catching real-word mistakes (their/there)
 - Signed and notarized by Apple, so macOS opens it without the extra step
 
