@@ -262,7 +262,7 @@ namespace Fixaro
         {
             get
             {
-                if (Kind == "ollama") return "Ollama";
+                if (Kind == "ollama") return Base == "http://127.0.0.1:11434" || Base == "http://localhost:11434" ? "Ollama" : "Ollama (" + new Uri(Base).Host + ")";
                 var b = Base;
                 if (b.Contains(":1234")) return "LM Studio";
                 if (b.Contains(":1337")) return "Jan";
@@ -1002,6 +1002,9 @@ namespace Fixaro
                 bubble.HideBubble();
                 if (cleaned == null)
                 {
+                    Store.Log("rephrase rejected [" + model + ", " + watch.ElapsedMilliseconds + " ms]: " +
+                              (raw == null ? "no answer" : raw.Trim().Length == 0 ? "empty answer (a thinking model may have used up its budget)"
+                                                         : "answer of " + raw.Length + " chars for " + original.Length + " chars of text"));
                     RestoreClipboard(saved);
                     saved = null;
                     bubble.ShowNear(raw == null ? "Couldn't reach " + AI.DisplayName : "The AI's answer didn't look right, so nothing was changed", near, false);
@@ -1212,11 +1215,15 @@ namespace Fixaro
                 isPreset |= on;
                 apps.DropDownItems.Add(new ToolStripMenuItem(p[0], null, (s, e) => SetServer(kind, url)) { Checked = on });
             }
-            apps.DropDownItems.Add(new ToolStripMenuItem(isPreset ? "Other app (OpenAI-compatible)…" : "Other: " + AI.Base + "…", null, (s, e) =>
+            apps.DropDownItems.Add(new ToolStripMenuItem(isPreset ? "Other app or computer…" : "Other: " + AI.Base + "…", null, (s, e) =>
             {
-                var f = Ask.Fields("Other AI app", "The address of an OpenAI-compatible server running on this PC or your network.",
-                                   new[] { "Address" }, new[] { "http://localhost:1234/v1" });
-                if (f != null && f[0].StartsWith("http")) SetServer("openai", f[0]);
+                var f = Ask.Fields("Other AI app or computer",
+                    "Ollama on another computer: its address, like http://192.168.64.1:11434\n" +
+                    "An OpenAI-compatible app: its address ending in /v1, like http://localhost:1234/v1",
+                    new[] { "Address" }, new[] { "http://192.168.64.1:11434" });
+                if (f == null || !f[0].StartsWith("http")) return;
+                var url = f[0].TrimEnd('/');
+                SetServer(url.EndsWith("/v1") ? "openai" : "ollama", url);
             }) { Checked = !isPreset });
             root.DropDownItems.Add(apps);
 

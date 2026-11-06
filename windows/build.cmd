@@ -17,7 +17,7 @@ if not defined CSC (
 
 echo Building Fixaro...
 if not exist build mkdir build
-"%CSC%" /nologo /target:winexe /optimize+ /platform:anycpu /out:build\Fixaro.exe ^
+"%CSC%" /nologo /codepage:65001 /target:winexe /optimize+ /platform:anycpu /out:build\Fixaro.exe ^
   /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll Fixaro.cs > build\build.log 2>&1
 if errorlevel 1 (
   type build\build.log
