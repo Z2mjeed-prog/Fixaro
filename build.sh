@@ -30,7 +30,7 @@ SDK="$(xcrun --sdk macosx --show-sdk-path)"
 if TAGS="$(curl -s --max-time 2 http://127.0.0.1:11434/api/tags)"; then
   echo "Ollama: running"
   MEM_GB=$(( $(sysctl -n hw.memsize) / 1073741824 ))
-  if [ "$MEM_GB" -ge 18 ]; then REC="qwen3.5:4b gemma4:e4b"; elif [ "$MEM_GB" -ge 16 ]; then REC="qwen3.5:4b"; else REC="nemotron-3-nano:4b"; fi
+  if [ "$MEM_GB" -ge 15 ]; then REC="qwen3.5:9b"; else REC="nemotron-3-nano:4b"; fi
   for m in $REC; do
     echo "$TAGS" | grep -q "\"$m\"" || echo "   suggested for your ${MEM_GB} GB Mac:  ollama pull $m   (any model works; see README)"
   done
@@ -43,6 +43,8 @@ rm -rf "$DIR/build/$APP.app"
 mkdir -p "$BUILD/Contents/MacOS" "$BUILD/Contents/Resources"
 cp "$DIR"/Resources/* "$BUILD/Contents/Resources/"
 cp "$DIR/Info.plist" "$BUILD/Contents/Info.plist"
+VERSION="$(tr -d '[:space:]' < "$DIR/VERSION" 2>/dev/null)"
+[ -n "$VERSION" ] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$BUILD/Contents/Info.plist"
 if [ -n "$FIXARO_DEV_LOG_DIR" ]; then
   /usr/libexec/PlistBuddy -c "Add :FixaroDevLogDir string $FIXARO_DEV_LOG_DIR" "$BUILD/Contents/Info.plist"
 fi
@@ -55,7 +57,10 @@ if ! xcrun swiftc -O -swift-version 5 -target "$(uname -m)-apple-macos$OSVER" -s
   echo "BUILD FAILED. Please open an issue on GitHub with the error above."
   exit 1
 fi
-codesign --force --sign - "$BUILD" >/dev/null 2>&1 || { echo "Signing failed"; exit 1; }
+# Sign with your own certificate if you have one (FIXARO_SIGN_ID="name"), so macOS keeps the
+# Accessibility permission across rebuilds. Otherwise sign ad-hoc, which needs fresh permission each time.
+SIGN_ID="${FIXARO_SIGN_ID:--}"
+codesign --force --sign "$SIGN_ID" "$BUILD" >/dev/null 2>&1 || { echo "Signing failed"; exit 1; }
 
 echo "Installing to ${DEST%/*} ..."
 pkill -x "$APP" 2>/dev/null; sleep 1
@@ -63,7 +68,7 @@ mkdir -p "${DEST%/*}"
 rm -rf "$DEST"
 cp -R "$BUILD" "$DEST"
 # A rebuilt app needs fresh permission; this clears Fixaro's old entry only.
-tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 || true
+[ "$SIGN_ID" = "-" ] && { tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 || true; }
 : > "$LOG"
 open "$DEST"
 

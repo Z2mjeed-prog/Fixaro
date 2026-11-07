@@ -1,52 +1,120 @@
 name: Release
 
-# Publish a release (or push a tag) like v1.1.0, and GitHub builds Fixaro and attaches
-# Fixaro-1.1.0.dmg and .zip to it.
+# Builds the ready-made apps that the one-line installers download.
+#  - On main, changing VERSION publishes release v<VERSION> (the "latest" release) with
+#    Fixaro-mac.zip and Fixaro-windows.zip. The apps see the new VERSION and offer the update.
+#  - Pushing to a test/... branch (or running it by hand on another branch) publishes a "test-build"
+#    pre-release from that branch, which the installers use when run with FIXARO_BRANCH=<branch>.
 on:
   push:
-    tags: ["v*"]
-  release:
-    types: [published]
+    branches: [main, "test/**"]
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    runs-on: macos-15
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.c.outputs.go }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      # On main, only build when VERSION changed (that's a release)
+      - id: c
+        run: |
+          if [ "$GITHUB_REF_NAME" != "main" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || ! git diff --quiet HEAD~1 HEAD -- VERSION; then
+            echo "go=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+  mac:
+    needs: check
+    if: needs.check.outputs.go == 'yes'
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use the newest Xcode (for Apple Intelligence support)
+      # The same certificate every release, so macOS keeps Fixaro's Accessibility permission after updates.
+      # Without the MAC_CERT_P12 secret the app is signed ad-hoc and needs the permission again each update.
+      - name: Load the signing certificate
+        env:
+          MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
         run: |
-          XC="$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)"
-          sudo xcode-select -s "$XC"
-          xcrun swiftc --version
+          if [ -z "$MAC_CERT_P12" ]; then echo "No certificate: signing ad-hoc"; exit 0; fi
+          KC="$RUNNER_TEMP/sign.keychain-db"; KCPASS="$(uuidgen)"
+          security create-keychain -p "$KCPASS" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KCPASS" "$KC"
+          echo "$MAC_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPASS" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          # Trust it for code signing on this runner only
+          security find-certificate -c "Fixaro" -p "$KC" > "$RUNNER_TEMP/cert.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          rm -f "$RUNNER_TEMP/cert.p12"
+          HASH="$(security find-identity -v -p codesigning "$KC" | awk '/Fixaro/{print $2; exit}')"
+          [ -n "$HASH" ] || { security find-identity -p codesigning "$KC"; echo "Certificate didn't load"; exit 1; }
+          echo "SIGN_ID=$HASH" >> "$GITHUB_ENV"
 
-      - name: Install the .dmg styling tool
-        run: brew install create-dmg
+      - name: Build Fixaro-mac.zip
+        run: bash scripts/package.sh
 
-      - name: Build the app, .dmg and .zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/Fixaro-mac.zip
+
+  windows:
+    needs: check
+    if: needs.check.outputs.go == 'yes'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Fixaro-windows.zip
+        shell: cmd
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then bash scripts/package.sh "$GITHUB_REF_NAME"; else bash scripts/package.sh; fi
+          call windows\build.cmd ci || exit /b 1
+          powershell -NoProfile -Command "Compress-Archive -Path windows\build\Fixaro.exe -DestinationPath Fixaro-windows.zip -Force"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: Fixaro-windows.zip
 
+  publish:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip --clobber
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            TAG="v$VERSION"
+            NOTES="Install or update with one line: see [Install](https://github.com/$GITHUB_REPOSITORY#install). Fixaro also offers this update in its menu."
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" out/Fixaro-mac.zip out/Fixaro-windows.zip --clobber
+            else
+              gh release create "$TAG" out/Fixaro-mac.zip out/Fixaro-windows.zip --target "$GITHUB_SHA" \
+                --title "Fixaro $VERSION" --notes "$NOTES" --latest
+            fi
           else
-            gh release create "$GITHUB_REF_NAME" dist/*.dmg dist/*.zip \
-              --title "Fixaro ${GITHUB_REF_NAME#v}" \
-              --notes "Download **Fixaro-${GITHUB_REF_NAME#v}.dmg**, open it, and drag Fixaro into Applications. See the [install steps](https://github.com/${{ github.repository }}#install)."
+            TAG="test-build"
+            gh release delete "$TAG" --yes --cleanup-tag >/dev/null 2>&1 || true
+            gh release create "$TAG" out/Fixaro-mac.zip out/Fixaro-windows.zip --target "$GITHUB_SHA" \
+              --title "Test build ($GITHUB_REF_NAME, $VERSION)" --notes "For testing only. Built from branch $GITHUB_REF_NAME." \
+              --prerelease --latest=false
           fi
-
-      - name: Keep the build (manual runs)
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-        uses: actions/upload-artifact@v4
-        with:
-          name: Fixaro
-          path: dist/
