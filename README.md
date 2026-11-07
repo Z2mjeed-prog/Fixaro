@@ -22,6 +22,8 @@ Select text in any app and press one shortcut. Fixaro fixes the grammar and rewr
 | **Rewrite as…:** pick a style, or say how | **⌃⌥S** | **Ctrl + Alt + S** |
 | **Undo** | **⌘Z** | **Ctrl + Z** |
 
+Use different keys if you like: **Settings → Shortcuts**.
+
 With **⌃⌥S** (**Ctrl + Alt + S** on Windows) a popup opens next to your text. Type how you want it, like *more formal, and ask for a reply by Sunday*, and press **Enter**. Or press a style's number.
 
 <p align="center">

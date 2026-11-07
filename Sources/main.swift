@@ -384,6 +384,58 @@ struct PendingFix {
     var asked: Bool        // decision already requested (AI, spell checker or learned)
 }
 
+/// A keyboard shortcut you can change, like ⌃⌥R. Saved as "keyCode:modifiers:key".
+struct Shortcut: Equatable {
+    var keyCode: Int64
+    var mods: UInt64          // CGEventFlags: Control, Option, Command, Shift
+    var key: String           // the key as shown, like "R"
+
+    static let relevant: CGEventFlags = [.maskControl, .maskAlternate, .maskCommand, .maskShift]
+    static let polishDefault = Shortcut(keyCode: 15, mods: CGEventFlags([.maskControl, .maskAlternate]).rawValue, key: "R")
+    static let rewriteDefault = Shortcut(keyCode: 1, mods: CGEventFlags([.maskControl, .maskAlternate]).rawValue, key: "S")
+
+    var flags: CGEventFlags { CGEventFlags(rawValue: mods) }
+    var display: String {
+        (flags.contains(.maskControl) ? "⌃" : "") + (flags.contains(.maskAlternate) ? "⌥" : "") +
+        (flags.contains(.maskShift) ? "⇧" : "") + (flags.contains(.maskCommand) ? "⌘" : "") + key
+    }
+    var menuMask: NSEvent.ModifierFlags {
+        var m: NSEvent.ModifierFlags = []
+        if flags.contains(.maskControl) { m.insert(.control) }
+        if flags.contains(.maskAlternate) { m.insert(.option) }
+        if flags.contains(.maskShift) { m.insert(.shift) }
+        if flags.contains(.maskCommand) { m.insert(.command) }
+        return m
+    }
+    /// Needs Control or Option, so it never gets in the way of typing or ⌘ shortcuts like ⌘C
+    var isUsable: Bool { (flags.contains(.maskControl) || flags.contains(.maskAlternate)) && key.count == 1 }
+
+    func matches(_ code: Int64, _ eventFlags: CGEventFlags) -> Bool {
+        code == keyCode && eventFlags.intersection(Self.relevant).rawValue == mods
+    }
+    var stored: String { "\(keyCode):\(mods):\(key)" }
+    init(keyCode: Int64, mods: UInt64, key: String) { self.keyCode = keyCode; self.mods = mods; self.key = key }
+    init?(stored: String?) {
+        guard let parts = stored?.split(separator: ":", maxSplits: 2).map(String.init), parts.count == 3,
+              let c = Int64(parts[0]), let m = UInt64(parts[1]) else { return nil }
+        self.init(keyCode: c, mods: m, key: parts[2])
+        if !isUsable { return nil }
+    }
+    init?(event: NSEvent) {
+        var m: CGEventFlags = []
+        let f = event.modifierFlags
+        if f.contains(.control) { m.insert(.maskControl) }
+        if f.contains(.option) { m.insert(.maskAlternate) }
+        if f.contains(.shift) { m.insert(.maskShift) }
+        if f.contains(.command) { m.insert(.maskCommand) }
+        // The key's own letter, ignoring ⌥ (which would turn R into ®)
+        guard let chars = event.charactersIgnoringModifiers?.uppercased(), chars.count == 1,
+              chars.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) }) else { return nil }
+        self.init(keyCode: Int64(event.keyCode), mods: m.rawValue, key: chars)
+        if !isUsable { return nil }
+    }
+}
+
 /// A fix Fixaro made recently. It can still be undone (⌃⌥Z) until you've typed 3 more words.
 struct RecentFix {
     let original: String
@@ -694,21 +746,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
             reset(); return false
         }
         let flags = event.flags
-        if flags.contains(.maskControl) && flags.contains(.maskAlternate) && !flags.contains(.maskCommand) {
-            switch event.getIntegerValueField(.keyboardEventKeycode) {
-            case 15:                                                       // ⌃⌥R = rephrase in your usual style
-                reset()
-                Task { await self.rephraseSelection(choose: false) }
-                return true
-            case 1:                                                        // ⌃⌥S = pick a style or type how
-                reset()
-                Task { await self.rephraseSelection(choose: true) }
-                return true
-            case 6:                                                        // ⌃⌥Z = undo the last fix
-                Task { await self.undoLastFixFromShortcut() }
-                return true
-            default: break
-            }
+        let code = event.getIntegerValueField(.keyboardEventKeycode)
+        if recordingShortcut { return false }                 // you're choosing a new shortcut
+        if polishShortcut.matches(code, flags) {              // ⌃⌥R (or yours) = rephrase in your usual style
+            reset()
+            Task { await self.rephraseSelection(choose: false) }
+            return true
+        }
+        if rewriteShortcut.matches(code, flags) {             // ⌃⌥S (or yours) = pick a style or type how
+            reset()
+            Task { await self.rephraseSelection(choose: true) }
+            return true
+        }
+        if code == 6 && flags.contains(.maskControl) && flags.contains(.maskAlternate) && !flags.contains(.maskCommand) {
+            Task { await self.undoLastFixFromShortcut() }      // ⌃⌥Z = undo the last fix
+            return true
         }
         if !fixTyping { return false }                        // rephrase only: leave typing alone
         if flags.contains(.maskCommand) || flags.contains(.maskControl) { reset(); return false }
@@ -1701,7 +1753,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "Add a style"
-        alert.informativeText = "Give it a short name, and describe how your text should sound. It will appear when you press ⌃⌥S."
+        alert.informativeText = "Give it a short name, and describe how your text should sound. It will appear when you press \(rewriteShortcut.display)."
         let name = NSTextField(frame: NSRect(x: 0, y: 34, width: 360, height: 24))
         name.placeholderString = "Name, for example: Board report"
         let how = NSTextField(frame: NSRect(x: 0, y: 0, width: 360, height: 24))
@@ -1750,7 +1802,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
             return
         }
         rephrasing = true
-        logLine("rephrase: \(choose ? "⌃⌥S" : "⌃⌥R") pressed in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
+        logLine("rephrase: \(choose ? rewriteShortcut.display : polishShortcut.display) pressed in \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?")")
         updateIcon(symbol: "ellipsis.circle")
         defer { rephrasing = false; updateIcon() }
 
@@ -1998,13 +2050,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
 
         // Rephrase
         let reph = item("Polish selected text", #selector(rephraseFromMenu))
-        reph.keyEquivalent = "r"
-        reph.keyEquivalentModifierMask = [.control, .option]
+        reph.keyEquivalent = polishShortcut.key.lowercased()
+        reph.keyEquivalentModifierMask = polishShortcut.menuMask
         reph.image = symbol("wand.and.stars")
         menu.addItem(reph)
         let rephAs = item("Rewrite as…", #selector(rephraseChooseFromMenu))
-        rephAs.keyEquivalent = "s"
-        rephAs.keyEquivalentModifierMask = [.control, .option]
+        rephAs.keyEquivalent = rewriteShortcut.key.lowercased()
+        rephAs.keyEquivalentModifierMask = rewriteShortcut.menuMask
         menu.addItem(rephAs)
         menu.addItem(styleMenuItem())
 
@@ -2050,7 +2102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
     /// Your usual style (the one ⌃⌥R uses); add and edit your own.
     func styleMenuItem() -> NSMenuItem {
         let sm = NSMenu()
-        sm.addItem(NSMenuItem.sectionHeader(title: "Polish (⌃⌥R) uses"))
+        sm.addItem(NSMenuItem.sectionHeader(title: "Polish (\(polishShortcut.display)) uses"))
         for (i, s) in allStyles().enumerated() {
             if i == builtInStyles.count { sm.addItem(.separator()) }
             let it = item(s.title, #selector(selectStyle(_:)))
@@ -2173,6 +2225,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         menu.addItem(.separator())
 
         menu.addItem(item("Welcome and shortcuts…", #selector(showWelcome)))
+        let keys = NSMenuItem(title: "Shortcuts", action: nil, keyEquivalent: "")
+        let km = NSMenu()
+        km.addItem(item("Polish: \(polishShortcut.display)…", #selector(changePolishShortcut)))
+        km.addItem(item("Rewrite as…: \(rewriteShortcut.display)…", #selector(changeRewriteShortcut)))
+        keys.submenu = km
+        menu.addItem(keys)
         let login = item("Start at login", #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
@@ -2236,8 +2294,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
 
         let keys = NSTextField(labelWithString: "Shortcuts")
         keys.font = .boldSystemFont(ofSize: 13)
-        let k1 = NSTextField(labelWithString: "⌃⌥R    Polish the selected text in your usual style")
-        let k3 = NSTextField(labelWithString: "⌃⌥S    Pick a style, or type how to rewrite it")
+        let k1 = NSTextField(labelWithString: "\(polishShortcut.display)    Polish the selected text in your usual style")
+        let k3 = NSTextField(labelWithString: "\(rewriteShortcut.display)    Pick a style, or type how to rewrite it")
         let k2 = NSTextField(labelWithString: "Typo fixing as you type is off. Turn it on in the menu: Fix typos as I type")
         for k in [k1, k3, k2] { k.font = .systemFont(ofSize: 12); k.textColor = .secondaryLabelColor }
         let shortcuts = NSStackView(views: [keys, k1, k3, k2])
@@ -2563,6 +2621,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
     func recommendedModel() -> (name: String, size: String) {
         let gb = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
         return gb >= 15 ? ("qwen3.5:9b", "7.6 GB") : ("nemotron-3-nano:4b", "2.9 GB")
+    }
+
+    // MARK: Shortcuts you can change
+
+    var recordingShortcut = false
+    var polishShortcut: Shortcut {
+        get { Shortcut(stored: defaults.string(forKey: "shortcutPolish")) ?? .polishDefault }
+        set { defaults.set(newValue == .polishDefault ? nil : newValue.stored, forKey: "shortcutPolish") }
+    }
+    var rewriteShortcut: Shortcut {
+        get { Shortcut(stored: defaults.string(forKey: "shortcutRewrite")) ?? .rewriteDefault }
+        set { defaults.set(newValue == .rewriteDefault ? nil : newValue.stored, forKey: "shortcutRewrite") }
+    }
+
+    @objc func changePolishShortcut() { changeShortcut(polish: true) }
+    @objc func changeRewriteShortcut() { changeShortcut(polish: false) }
+
+    /// Asks you to press the new shortcut, and saves it.
+    func changeShortcut(polish: Bool) {
+        let what = polish ? "Polish" : "Rewrite as…"
+        let current = polish ? polishShortcut : rewriteShortcut
+        let fallback = polish ? Shortcut.polishDefault : Shortcut.rewriteDefault
+        var picked: Shortcut?
+
+        let alert = NSAlert()
+        alert.messageText = "Shortcut for \(what)"
+        alert.informativeText = "Press the keys you want, like ⌃⌥R. Use Control or Option (or both) with a letter or number."
+        let shown = NSTextField(labelWithString: current.display)
+        shown.font = .systemFont(ofSize: 22, weight: .semibold)
+        shown.alignment = .center
+        shown.frame = NSRect(x: 0, y: 0, width: 260, height: 32)
+        alert.accessoryView = shown
+        let save = alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Default")
+        save.isEnabled = false
+
+        recordingShortcut = true
+        let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let f = event.modifierFlags
+            if !f.contains(.control) && !f.contains(.option) && !f.contains(.command) { return event }   // Return, Esc, Tab work as usual
+            if let s = Shortcut(event: event) {
+                picked = s
+                shown.stringValue = s.display
+                save.isEnabled = true
+            } else {
+                shown.stringValue = "Add ⌃ or ⌥"
+            }
+            return nil
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let answer = alert.runModal()
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        recordingShortcut = false
+
+        if answer == .alertThirdButtonReturn { picked = fallback }
+        else if answer != .alertFirstButtonReturn { return }
+        guard let new = picked else { return }
+        if new == (polish ? rewriteShortcut : polishShortcut) {
+            let a = NSAlert()
+            a.messageText = "\(new.display) is already the shortcut for \(polish ? "Rewrite as…" : "Polish")."
+            a.runModal()
+            return
+        }
+        if polish { polishShortcut = new } else { rewriteShortcut = new }
+        logLine("Shortcut for \(what): \(new.display)")
     }
 
     // MARK: Updates

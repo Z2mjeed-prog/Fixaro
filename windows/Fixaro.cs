@@ -859,6 +859,102 @@ namespace Fixaro
     }
 
     /// A small dialog with two text boxes (for "Add a style…" and "Download a model…").
+    // ------------------------------------------------------------------ Shortcuts you can change
+
+    /// A keyboard shortcut like Ctrl+Alt+R, stored in settings.ini as "Ctrl+Alt+R".
+    class Hotkey
+    {
+        public bool Ctrl, Alt, Shift;
+        public Keys Key;
+
+        public static Hotkey Parse(string text, string fallback)
+        {
+            var h = TryParse(text);
+            return h ?? TryParse(fallback);
+        }
+
+        static Hotkey TryParse(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return null;
+            var h = new Hotkey();
+            foreach (var part in text.Split('+'))
+            {
+                var p = part.Trim();
+                if (p == "Ctrl") h.Ctrl = true;
+                else if (p == "Alt") h.Alt = true;
+                else if (p == "Shift") h.Shift = true;
+                else
+                {
+                    Keys k;
+                    if (p.Length == 1 && char.IsDigit(p[0])) p = "D" + p;
+                    if (!Enum.TryParse(p, out k)) return null;
+                    h.Key = k;
+                }
+            }
+            return h.IsUsable ? h : null;
+        }
+
+        /// A letter, number or F-key, with Ctrl or Alt (so it doesn't get in the way of normal typing)
+        public bool IsUsable
+        {
+            get
+            {
+                bool keyOk = (Key >= Keys.A && Key <= Keys.Z) || (Key >= Keys.D0 && Key <= Keys.D9) || (Key >= Keys.F1 && Key <= Keys.F12);
+                return keyOk && (Ctrl || Alt);
+            }
+        }
+
+        public uint Mods { get { return (Ctrl ? Native.MOD_CONTROL : 0) | (Alt ? Native.MOD_ALT : 0) | (Shift ? 4u : 0) | Native.MOD_NOREPEAT; } }
+
+        public override string ToString()
+        {
+            var k = Key.ToString();
+            if (k.Length == 2 && k[0] == 'D' && char.IsDigit(k[1])) k = k.Substring(1);
+            return (Ctrl ? "Ctrl+" : "") + (Alt ? "Alt+" : "") + (Shift ? "Shift+" : "") + k;
+        }
+
+        public string Spoken { get { return ToString().Replace("+", " + "); } }
+
+        /// Asks you to press a new shortcut. Returns null if you cancel; "reset" gives back the default.
+        public static Hotkey Record(string what, Hotkey current, Hotkey fallback)
+        {
+            var f = new Form
+            {
+                Text = "Shortcut for " + what, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterScreen, Font = new Font("Segoe UI", 9.5f), TopMost = true, ShowInTaskbar = true,
+                KeyPreview = true, ClientSize = new Size(420, 170)
+            };
+            f.Controls.Add(new Label
+            {
+                Text = "Press the keys you want for " + what + ", like Ctrl + Alt + R.\nUse Ctrl or Alt (or both) with a letter, number or F-key.",
+                Location = new Point(14, 14), Size = new Size(392, 44)
+            });
+            var shown = new Label
+            {
+                Text = current.Spoken, Location = new Point(14, 64), Size = new Size(392, 36), TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Segoe UI", 14f, FontStyle.Bold), BorderStyle = BorderStyle.FixedSingle
+            };
+            f.Controls.Add(shown);
+            Hotkey picked = null;
+            var save = new Button { Text = "Save", DialogResult = DialogResult.OK, Location = new Point(170, 124), Width = 75, Enabled = false };
+            var reset = new Button { Text = "Default", Location = new Point(251, 124), Width = 75 };
+            var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(332, 124), Width = 75 };
+            reset.Click += (s, e) => { picked = fallback; shown.Text = fallback.Spoken; save.Enabled = true; };
+            f.Controls.Add(save); f.Controls.Add(reset); f.Controls.Add(cancel);
+            f.CancelButton = cancel;
+            f.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.ControlKey || e.KeyCode == Keys.Menu || e.KeyCode == Keys.ShiftKey) return;
+                if (e.KeyCode == Keys.Escape || ((e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space || e.KeyCode == Keys.Tab) && !e.Control && !e.Alt)) return;
+                var h = new Hotkey { Ctrl = e.Control, Alt = e.Alt, Shift = e.Shift, Key = e.KeyCode };
+                e.Handled = e.SuppressKeyPress = true;
+                if (h.IsUsable) { picked = h; shown.Text = h.Spoken; save.Enabled = true; }
+                else shown.Text = "Add Ctrl or Alt, with a letter or number";
+            };
+            return f.ShowDialog() == DialogResult.OK ? picked : null;
+        }
+    }
+
     static class Ask
     {
         public static string[] Fields(string title, string intro, string[] labels, string[] hints)
@@ -915,6 +1011,9 @@ namespace Fixaro
         bool Paused { get { return Store.Get("paused", "no") == "yes"; } set { Store.Set("paused", value ? "yes" : "no"); } }
         string UsualStyle { get { return Store.Get("rephraseStyle", "natural"); } set { Store.Set("rephraseStyle", value); } }
         string FreeMemoryAfter { get { return Store.Get("freeMemoryAfter", "5m"); } set { Store.Set("freeMemoryAfter", value); } }
+        static readonly Hotkey DefaultPolish = Hotkey.Parse("Ctrl+Alt+R", null), DefaultRewrite = Hotkey.Parse("Ctrl+Alt+S", null);
+        Hotkey PolishKey { get { return Hotkey.Parse(Store.Get("shortcutPolish", null), "Ctrl+Alt+R"); } }
+        Hotkey RewriteKey { get { return Hotkey.Parse(Store.Get("shortcutRewrite", null), "Ctrl+Alt+S"); } }
 
         public App()
         {
@@ -940,17 +1039,50 @@ namespace Fixaro
             var __ = Startup();
         }
 
+        bool polishTaken, rewriteTaken;
+
         void RegisterHotkeys()
         {
-            uint mods = Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT;
-            bool r = Native.RegisterHotKey(hotkeys.Handle, HotkeyRephrase, mods, (uint)Keys.R);
-            bool s = Native.RegisterHotKey(hotkeys.Handle, HotkeyChoose, mods, (uint)Keys.S);
-            if (!r || !s)
+            var p = PolishKey; var w = RewriteKey;
+            polishTaken = !Native.RegisterHotKey(hotkeys.Handle, HotkeyRephrase, p.Mods, (uint)p.Key);
+            rewriteTaken = !Native.RegisterHotKey(hotkeys.Handle, HotkeyChoose, w.Mods, (uint)w.Key);
+            if (polishTaken || rewriteTaken)
             {
-                Store.Log("Shortcut taken by another app: " + (!r ? "Ctrl+Alt+R " : "") + (!s ? "Ctrl+Alt+S" : ""));
-                tray.ShowBalloonTip(6000, "Fixaro", "Another app is already using " + (!r ? "Ctrl+Alt+R" : "Ctrl+Alt+S") +
-                    ". Close it, then pause and resume Fixaro.", ToolTipIcon.Warning);
+                var taken = polishTaken ? p.Spoken : w.Spoken;
+                Store.Log("Shortcut taken by another app: " + (polishTaken ? p + " " : "") + (rewriteTaken ? w.ToString() : ""));
+                tray.ShowBalloonTip(8000, "Fixaro", "Another app is already using " + taken +
+                    ". Choose a different one: Fixaro's menu > Settings > Shortcuts.", ToolTipIcon.Warning);
             }
+        }
+
+        void ChangeShortcut(bool polish)
+        {
+            var what = polish ? "Polish" : "Rewrite as…";
+            var picked = Hotkey.Record(what, polish ? PolishKey : RewriteKey, polish ? DefaultPolish : DefaultRewrite);
+            if (picked == null) return;
+            var other = polish ? RewriteKey : PolishKey;
+            if (picked.ToString() == other.ToString())
+            {
+                MessageBox.Show(picked.Spoken + " is already the shortcut for " + (polish ? "Rewrite as…" : "Polish") + ".", "Fixaro");
+                return;
+            }
+            var key = polish ? "shortcutPolish" : "shortcutRewrite";
+            var before = Store.Get(key, null);
+            if (!Paused) UnregisterHotkeys();
+            Store.Set(key, picked.ToString());
+            Store.Log("Shortcut for " + what + ": " + picked);
+            if (!Paused)
+            {
+                RegisterHotkeys();
+                if (polish ? polishTaken : rewriteTaken)
+                {
+                    UnregisterHotkeys();
+                    Store.Set(key, before);
+                    RegisterHotkeys();
+                    return;
+                }
+            }
+            tray.ShowBalloonTip(5000, "Fixaro", what + " is now " + picked.Spoken + ".", ToolTipIcon.Info);
         }
 
         void UnregisterHotkeys()
@@ -990,7 +1122,7 @@ namespace Fixaro
                 else
                 {
                     tray.ShowBalloonTip(8000, "Fixaro is ready",
-                        "Select text in any app and press Ctrl+Alt+R to polish it, or Ctrl+Alt+S to rewrite it your way.", ToolTipIcon.Info);
+                        "Select text in any app and press " + PolishKey.Spoken + " to polish it, or " + RewriteKey.Spoken + " to rewrite it your way.", ToolTipIcon.Info);
                 }
             }
         }
@@ -1186,8 +1318,8 @@ namespace Fixaro
                 menu.Items.Add(new ToolStripMenuItem(Updater.Running ? "Updating Fixaro…" : "Update Fixaro to " + Updater.NewVersion + "…", null,
                     (s, e) => Updater.Run(msg => tray.ShowBalloonTip(6000, "Fixaro", msg, ToolTipIcon.Info))) { Enabled = !Updater.Running });
             menu.Items.Add(new ToolStripSeparator());
-            var reph = new ToolStripMenuItem("Polish selected text", null, (s, e) => { var _ = FromMenu(false); }) { ShortcutKeyDisplayString = "Ctrl+Alt+R" };
-            var rephAs = new ToolStripMenuItem("Rewrite as…", null, (s, e) => { var _ = FromMenu(true); }) { ShortcutKeyDisplayString = "Ctrl+Alt+S" };
+            var reph = new ToolStripMenuItem("Polish selected text", null, (s, e) => { var _ = FromMenu(false); }) { ShortcutKeyDisplayString = PolishKey.ToString() };
+            var rephAs = new ToolStripMenuItem("Rewrite as…", null, (s, e) => { var _ = FromMenu(true); }) { ShortcutKeyDisplayString = RewriteKey.ToString() };
             reph.Enabled = rephAs.Enabled = !Paused;
             menu.Items.Add(reph);
             menu.Items.Add(rephAs);
@@ -1221,7 +1353,7 @@ namespace Fixaro
         {
             var usual = Styles.Find(UsualStyle);
             var root = new ToolStripMenuItem("Usual style: " + usual.Title);
-            root.DropDownItems.Add(new ToolStripMenuItem("Polish (Ctrl+Alt+R) uses") { Enabled = false });
+            root.DropDownItems.Add(new ToolStripMenuItem("Polish (" + PolishKey + ") uses") { Enabled = false });
             foreach (var st in Styles.All())
             {
                 var key = st.Key;
@@ -1239,7 +1371,7 @@ namespace Fixaro
 
         void AddStyle()
         {
-            var f = Ask.Fields("Add a style", "Your style appears in the Ctrl+Alt+S popup. Describe how the text should be rewritten.",
+            var f = Ask.Fields("Add a style", "Your style appears in the " + RewriteKey + " popup. Describe how the text should be rewritten.",
                 new[] { "Name", "How to rewrite it" },
                 new[] { "Customer reply", "Polite and helpful, thank the customer, and end with a clear next step" });
             if (f == null || f[0].Length == 0 || f[1].Length == 0) return;
@@ -1319,6 +1451,10 @@ namespace Fixaro
             root.DropDownItems.Add(apps);
 
             root.DropDownItems.Add(new ToolStripSeparator());
+            var keys = new ToolStripMenuItem("Shortcuts");
+            keys.DropDownItems.Add(new ToolStripMenuItem("Polish: " + PolishKey.Spoken + "…", null, (s, e) => ChangeShortcut(true)));
+            keys.DropDownItems.Add(new ToolStripMenuItem("Rewrite as…: " + RewriteKey.Spoken + "…", null, (s, e) => ChangeShortcut(false)));
+            root.DropDownItems.Add(keys);
             root.DropDownItems.Add(new ToolStripMenuItem("Start Fixaro when Windows starts", null, (s, e) => ToggleStartup()) { Checked = StartsWithWindows() });
             root.DropDownItems.Add(new ToolStripMenuItem("Check for updates", null, (s, e) => { Updater.Enabled = !Updater.Enabled; }) { Checked = Updater.Enabled });
             root.DropDownItems.Add(new ToolStripMenuItem("Version " + AppVersion.Value) { Enabled = false });
@@ -1359,7 +1495,7 @@ namespace Fixaro
             downloadStatus = null;
             await RefreshModels();
             if (ok) Store.Set("rephraseModel", name);
-            tray.ShowBalloonTip(6000, "Fixaro", ok ? name + " is ready. Select text and press Ctrl+Alt+R to polish it." : "Couldn't download " + name + ". Check the name and your connection.",
+            tray.ShowBalloonTip(6000, "Fixaro", ok ? name + " is ready. Select text and press " + PolishKey.Spoken + " to polish it." : "Couldn't download " + name + ". Check the name and your connection.",
                                 ok ? ToolTipIcon.Info : ToolTipIcon.Warning);
         }
 
