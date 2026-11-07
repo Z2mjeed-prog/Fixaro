@@ -1,8 +1,11 @@
 @echo off
 rem Builds Fixaro for Windows with the C# compiler that comes with Windows, installs it, and starts it.
 rem Nothing to download: run this file (double-click it, or run "windows\build.cmd" from the Fixaro folder).
+rem "build.cmd ci" only builds build\Fixaro.exe (no install, no pause): used by GitHub and the installer.
 setlocal
 cd /d "%~dp0"
+set "CI="
+if /i "%~1"=="ci" set "CI=1"
 
 set "CSC="
 for %%F in (FrameworkArm64 Framework64 Framework) do (
@@ -11,20 +14,28 @@ for %%F in (FrameworkArm64 Framework64 Framework) do (
 if not defined CSC (
   echo Couldn't find the C# compiler that comes with Windows ^(.NET Framework 4^).
   echo Turn on ".NET Framework 4.8 Advanced Services" in "Turn Windows features on or off", then try again.
-  pause
+  if not defined CI pause
   exit /b 1
 )
 
 echo Building Fixaro...
 if not exist build mkdir build
+set "VERSION=0"
+if exist ..\VERSION set /p VERSION=<..\VERSION
+for /f "tokens=* delims= " %%V in ("%VERSION%") do set "VERSION=%%V"
+> build\Version.cs echo namespace Fixaro { static class AppVersion { public const string Value = "%VERSION%"; } }
 "%CSC%" /nologo /codepage:65001 /target:winexe /optimize+ /platform:anycpu /out:build\Fixaro.exe ^
-  /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll Fixaro.cs > build\build.log 2>&1
+  /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Web.Extensions.dll Fixaro.cs build\Version.cs > build\build.log 2>&1
 if errorlevel 1 (
   type build\build.log
   echo.
   echo The build failed. Please share the lines above in a GitHub issue.
-  pause
+  if not defined CI pause
   exit /b 1
+)
+if defined CI (
+  echo Built build\Fixaro.exe, version %VERSION%
+  exit /b 0
 )
 
 set "DEST=%LOCALAPPDATA%\Programs\Fixaro"

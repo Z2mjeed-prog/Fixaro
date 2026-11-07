@@ -492,6 +492,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         statusItem.menu = menu
         updateIcon()
 
+        startUpdateChecks()
         migrateEarlyData()
         setupWordList()
         loadLearned()
@@ -1982,6 +1983,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         header.attributedTitle = head
         header.isEnabled = false
         menu.addItem(header)
+        if let v = newVersion {
+            let up = item(updating ? "Updating Fixaro…" : "Update Fixaro to \(v)…", #selector(updateFixaro))
+            up.image = symbol("arrow.down.circle")
+            up.isEnabled = !updating
+            menu.addItem(up)
+        }
         if !ready {
             let allow = item("Allow Fixaro in Accessibility…", #selector(showWelcome))
             allow.image = symbol("exclamationmark.triangle")
@@ -2169,6 +2176,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
         let login = item("Start at login", #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
+        let upd = item("Check for updates", #selector(toggleUpdateChecks))
+        upd.state = checkUpdates ? .on : .off
+        menu.addItem(upd)
+        menu.addItem(label("Version \(currentVersion)"))
         menu.addItem(item("Open log", #selector(openLog)))
         return menu
     }
@@ -2551,7 +2562,100 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSText
     /// The model to start with, by this Mac's memory (tested in tools/bench.py).
     func recommendedModel() -> (name: String, size: String) {
         let gb = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
-        return gb >= 15 ? ("qwen3.5:4b", "4 GB") : ("nemotron-3-nano:4b", "2.9 GB")
+        return gb >= 15 ? ("qwen3.5:9b", "7.6 GB") : ("nemotron-3-nano:4b", "2.9 GB")
+    }
+
+    // MARK: Updates
+    // Once a day Fixaro reads the version number on GitHub. Nothing about you or your text is sent.
+
+    static let installURL = "https://raw.githubusercontent.com/Z2mjeed-prog/Fixaro/main/install.sh"
+    static let versionURL = "https://raw.githubusercontent.com/Z2mjeed-prog/Fixaro/main/VERSION"
+    var newVersion: String?
+    var updating = false
+    var updateTimer: Timer?
+    var currentVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0" }
+    var checkUpdates: Bool {
+        get { defaults.object(forKey: "checkUpdates") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "checkUpdates") }
+    }
+
+    func startUpdateChecks() {
+        updateTimer?.invalidate()
+        guard checkUpdates else { newVersion = nil; return }
+        Task {
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            await self.checkForUpdate()
+        }
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 24 * 3600, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Task { await self.checkForUpdate() }
+            }
+        }
+    }
+
+    func checkForUpdate() async {
+        guard checkUpdates, let url = URL(string: Self.versionURL) else { return }
+        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+        req.timeoutInterval = 10
+        guard let result = try? await URLSession.shared.data(for: req) else { return }
+        let (data, resp) = result
+        guard (resp as? HTTPURLResponse)?.statusCode == 200,
+              let latest = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              latest.range(of: #"^\d+(\.\d+)*$"#, options: .regularExpression) != nil else { return }
+        if Self.isNewer(latest, than: currentVersion) {
+            if newVersion != latest { logLine("Update available: \(latest) (you have \(currentVersion))") }
+            newVersion = latest
+            updateIcon()
+        } else {
+            newVersion = nil
+        }
+    }
+
+    static func isNewer(_ a: String, than b: String) -> Bool {
+        let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(x.count, y.count) {
+            let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0
+            if p != q { return p > q }
+        }
+        return false
+    }
+
+    /// Runs the installer in update mode: it downloads the new version, replaces Fixaro and opens it again.
+    @objc func updateFixaro() {
+        guard !updating else { return }
+        updating = true
+        logLine("Updating to \(newVersion ?? "?")")
+        showBubble("Updating Fixaro…", busy: true, near: nil)
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/bash")
+        task.arguments = ["-c", "nohup bash -c \"curl -fsSL '\(Self.installURL)' | FIXARO_UPDATE=1 bash\" >> \"$HOME/Library/Logs/Fixaro-update.log\" 2>&1"]
+        task.terminationHandler = { [weak self] t in
+            let status = t.terminationStatus
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    // Only reached if the update failed: on success the installer quits and reopens Fixaro
+                    guard let self else { return }
+                    self.updating = false
+                    self.hideBubble()
+                    if status != 0 {
+                        logLine("Update failed (see ~/Library/Logs/Fixaro-update.log)")
+                        self.showBubble("The update didn't work. Try again later.", busy: false, near: nil)
+                        self.hideBubble(after: 4)
+                    }
+                }
+            }
+        }
+        do { try task.run() } catch {
+            updating = false
+            hideBubble()
+            logLine("Update couldn't start: \(error.localizedDescription)")
+        }
+    }
+
+    @objc func toggleUpdateChecks() {
+        checkUpdates.toggle()
+        startUpdateChecks()
     }
 
     // MARK: Turning Fixaro off in specific apps

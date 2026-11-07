@@ -254,6 +254,93 @@ namespace Fixaro
         public ModelInfo(string name, long size) { Name = name; Size = size; }
     }
 
+    // ------------------------------------------------------------------ Updates
+    // Once a day Fixaro reads the version number on GitHub. Nothing about you or your text is sent.
+
+    static class Updater
+    {
+        const string VersionURL = "https://raw.githubusercontent.com/Z2mjeed-prog/Fixaro/main/VERSION";
+        const string InstallURL = "https://raw.githubusercontent.com/Z2mjeed-prog/Fixaro/main/install.ps1";
+        public static string NewVersion;
+        public static bool Running;
+        static System.Windows.Forms.Timer timer;
+
+        public static bool Enabled
+        {
+            get { return Store.Get("checkUpdates", "yes") == "yes"; }
+            set { Store.Set("checkUpdates", value ? "yes" : "no"); if (!value) NewVersion = null; else { var _ = Check(); } }
+        }
+
+        public static void Start()
+        {
+            timer = new System.Windows.Forms.Timer { Interval = 20 * 1000 };
+            timer.Tick += (s, e) => { timer.Interval = 24 * 3600 * 1000; var _ = Check(); };
+            timer.Start();
+        }
+
+        static async Task Check()
+        {
+            if (!Enabled) return;
+            try
+            {
+                ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;   // TLS 1.2
+                var req = (HttpWebRequest)WebRequest.Create(VersionURL);
+                req.Timeout = 10000;
+                req.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.NoCacheNoStore);
+                string latest;
+                using (var resp = await req.GetResponseAsync())
+                using (var r = new StreamReader(resp.GetResponseStream()))
+                    latest = (await r.ReadToEndAsync()).Trim();
+                if (!Regex.IsMatch(latest, @"^\d+(\.\d+)*$")) return;
+                if (IsNewer(latest, AppVersion.Value))
+                {
+                    if (NewVersion != latest) Store.Log("Update available: " + latest + " (you have " + AppVersion.Value + ")");
+                    NewVersion = latest;
+                }
+                else NewVersion = null;
+            }
+            catch (Exception) { }   // offline: try again tomorrow
+        }
+
+        public static bool IsNewer(string a, string b)
+        {
+            var x = a.Split('.').Select(p => { int n; return int.TryParse(p, out n) ? n : 0; }).ToArray();
+            var y = b.Split('.').Select(p => { int n; return int.TryParse(p, out n) ? n : 0; }).ToArray();
+            for (int i = 0; i < Math.Max(x.Length, y.Length); i++)
+            {
+                int p = i < x.Length ? x[i] : 0, q = i < y.Length ? y[i] : 0;
+                if (p != q) return p > q;
+            }
+            return false;
+        }
+
+        /// Runs the installer in update mode, hidden: it downloads the new version, replaces Fixaro and starts it again.
+        public static void Run(Action<string> notify)
+        {
+            if (Running) return;
+            Running = true;
+            Store.Log("Updating to " + NewVersion);
+            notify("Updating Fixaro… it restarts by itself in a minute.");
+            try
+            {
+                var log = Path.Combine(Store.Dir, "update.log");
+                var script = "$env:FIXARO_UPDATE='1'; [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072; " +
+                             "irm '" + InstallURL + "' | iex *> '" + log.Replace("'", "''") + "'";
+                var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+                var p = Process.Start(new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand " + encoded)
+                    { CreateNoWindow = true, UseShellExecute = false });
+                p.EnableRaisingEvents = true;
+                // Only reached if the update failed: on success the installer closes this copy of Fixaro
+                p.Exited += (s, e) => { Running = false; Store.Log("Update didn't finish (see update.log)"); };
+            }
+            catch (Exception ex)
+            {
+                Running = false;
+                Store.Log("Update couldn't start: " + ex.Message);
+            }
+        }
+    }
+
     static class AI
     {
         public static string Kind { get { return Store.Get("serverKind", "ollama"); } }   // "ollama" or "openai"
@@ -849,6 +936,7 @@ namespace Fixaro
             if (!Paused) RegisterHotkeys();
             watchFocus.Tick += (s, e) => RememberOtherWindow();
             watchFocus.Start();
+            Updater.Start();
             var __ = Startup();
         }
 
@@ -1094,6 +1182,9 @@ namespace Fixaro
             menu.Items.Clear();
             var header = new ToolStripMenuItem("Fixaro — " + (Paused ? "paused" : "on")) { Enabled = false };
             menu.Items.Add(header);
+            if (Updater.NewVersion != null)
+                menu.Items.Add(new ToolStripMenuItem(Updater.Running ? "Updating Fixaro…" : "Update Fixaro to " + Updater.NewVersion + "…", null,
+                    (s, e) => Updater.Run(msg => tray.ShowBalloonTip(6000, "Fixaro", msg, ToolTipIcon.Info))) { Enabled = !Updater.Running });
             menu.Items.Add(new ToolStripSeparator());
             var reph = new ToolStripMenuItem("Polish selected text", null, (s, e) => { var _ = FromMenu(false); }) { ShortcutKeyDisplayString = "Ctrl+Alt+R" };
             var rephAs = new ToolStripMenuItem("Rewrite as…", null, (s, e) => { var _ = FromMenu(true); }) { ShortcutKeyDisplayString = "Ctrl+Alt+S" };
@@ -1229,6 +1320,8 @@ namespace Fixaro
 
             root.DropDownItems.Add(new ToolStripSeparator());
             root.DropDownItems.Add(new ToolStripMenuItem("Start Fixaro when Windows starts", null, (s, e) => ToggleStartup()) { Checked = StartsWithWindows() });
+            root.DropDownItems.Add(new ToolStripMenuItem("Check for updates", null, (s, e) => { Updater.Enabled = !Updater.Enabled; }) { Checked = Updater.Enabled });
+            root.DropDownItems.Add(new ToolStripMenuItem("Version " + AppVersion.Value) { Enabled = false });
             root.DropDownItems.Add(new ToolStripMenuItem("Open Fixaro's folder", null, (s, e) => Process.Start("explorer.exe", "\"" + Store.Dir + "\"")));
             return root;
         }
@@ -1254,7 +1347,7 @@ namespace Fixaro
 
         async Task DownloadModel()
         {
-            var recommended = TotalMemoryGB() >= 15 ? "qwen3.5:4b" : "nemotron-3-nano:4b";
+            var recommended = TotalMemoryGB() >= 15 ? "qwen3.5:9b" : "nemotron-3-nano:4b";
             var f = Ask.Fields("Download a model",
                 "Type the name of an Ollama model. For this PC we suggest " + recommended + ". Smaller models are faster, bigger ones write better.",
                 new[] { "Model name" }, new[] { recommended });

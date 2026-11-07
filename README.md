@@ -41,6 +41,7 @@ It keeps your names, numbers and meaning, and never answers your text: a questio
 - **Works offline** once your AI model is downloaded.
 - **Saves nothing you write.** Rewrites are never stored. It never sees password fields.
 - **Free and open source.** Anyone can check exactly what it does.
+- **Update check:** once a day it reads Fixaro's version number on GitHub, which sends nothing about you. Turn it off under **Settings → Check for updates**.
 
 ## Styles
 
@@ -55,33 +56,31 @@ It keeps your names, numbers and meaning, and never answers your text: a questio
 
 ## Install
 
-### Mac
+**Mac** (macOS 14 or later): open **Terminal** (⌘ Space, type `Terminal`) and paste:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Z2mjeed-prog/Fixaro/main/install.sh | bash
+```
+Then, in Fixaro's welcome window, click **Allow…** and switch Fixaro on. The **F** in your menu bar means it's on.
 
-You need **macOS 14 or later**. It takes about 5 minutes.
+**Windows** (10 or 11, preview): open **PowerShell** (Start menu, type `PowerShell`) and paste:
+```powershell
+irm https://raw.githubusercontent.com/Z2mjeed-prog/Fixaro/main/install.ps1 | iex
+```
+Then look for the **F** icon near the clock.
 
-1. **Get [Ollama](https://ollama.com/download)**, the free app that runs the AI. Move it into Applications and open it.
-2. **Install Fixaro:** open **Terminal** (⌘ Space, type `Terminal`) and paste:
-   ```bash
-   git clone https://github.com/Z2mjeed-prog/Fixaro.git && bash Fixaro/build.sh
-   ```
-   If macOS asks to install developer tools, click **Install**, then paste the line again.
-3. **In Fixaro's welcome window**, click **Allow…** and switch Fixaro on, then click **Download** to get an AI model.
+The installer gets [Ollama](https://ollama.com), the free app that runs the AI, if you don't have it, installs Fixaro, and offers to download the right AI model for your computer. It asks before installing anything.
 
-The **F** in your menu bar means it's on. To update: `cd Fixaro && git pull && bash build.sh`
+**Updates:** Fixaro tells you in its menu when a new version is out: click **Update Fixaro…**. Or paste the same line again.
 
-### Windows (preview)
+<details>
+<summary>Prefer to build it yourself?</summary>
 
-You need **Windows 10 or 11**. The Windows version does Polish and Rewrite as…, everything on this page.
-
-1. **Get [Ollama for Windows](https://ollama.com/download/windows)** and open it.
-2. **Install Fixaro:** open **PowerShell** (Start menu, type `PowerShell`) and paste:
-   ```powershell
-   cd $env:USERPROFILE; iwr https://github.com/Z2mjeed-prog/Fixaro/archive/refs/heads/main.zip -OutFile fixaro.zip; Expand-Archive fixaro.zip . -Force; cmd /c Fixaro-main\windows\build.cmd
-   ```
-   It builds with the compiler that comes with Windows, so there's nothing else to install.
-3. **Click the F icon** near the clock → **Settings → Download a model…**
-
-To update, paste the same line again.
+Mac (needs Apple's developer tools, which macOS offers to install):
+```bash
+git clone https://github.com/Z2mjeed-prog/Fixaro.git && bash Fixaro/build.sh
+```
+Windows (builds with the compiler that comes with Windows): download the code, open the `windows` folder and run `build.cmd`.
+</details>
 
 ### Which model?
 
@@ -105,7 +104,7 @@ Download one from Fixaro's menu: **Settings → Download a model…**, then pick
 
 ## Good to know
 
-- **Mac permission:** Fixaro needs **Accessibility** permission to read and replace text in other apps. If the menu bar icon shows ⚠ after an update, switch Fixaro off and on again under Accessibility.
+- **Mac permission:** Fixaro needs **Accessibility** permission to read and replace text in other apps. If the menu bar icon shows ⚠, switch Fixaro off and on again under **System Settings → Privacy & Security → Accessibility**.
 - **Clipboard:** to rewrite, it copies your selection and then puts your clipboard back, so a clipboard manager may keep a copy.
 - **Memory:** the AI model frees its memory 5 minutes after you last use it. On a tight computer, choose **Settings → Free AI memory → Right away**.
 - **Nothing happens?** Make sure Ollama is running and some text is selected. Fixaro's log shows what went wrong, never your text.
@@ -118,7 +117,7 @@ Download one from Fixaro's menu: **Settings → Download a model…**, then pick
 
 ```bash
 osascript -e 'quit app "Fixaro"'
-rm -rf /Applications/Fixaro.app ~/Applications/Fixaro.app ~/Library/Application\ Support/Fixaro ~/Library/Logs/Fixaro.log
+rm -rf /Applications/Fixaro.app ~/Applications/Fixaro.app ~/Library/Application\ Support/Fixaro ~/Library/Logs/Fixaro.log ~/Library/Logs/Fixaro-update.log
 defaults delete io.github.z2mjeed-prog.fixaro; tccutil reset Accessibility io.github.z2mjeed-prog.fixaro
 ```
 If you turned on **Start at login**, also remove Fixaro under **System Settings → General → Login Items**.
@@ -140,8 +139,6 @@ Stop-Process -Name Fixaro -ErrorAction SilentlyContinue; Remove-Item -Recurse -F
 </picture>
 
 Each version is a single file: `Sources/main.swift` (Mac) and `windows/Fixaro.cs` (Windows), built on your own computer.
-
-**Coming next:** a one-line installer that also gets Ollama, and signed downloads.
 
 Issues and pull requests are welcome. If something doesn't work, open an issue with the relevant lines from the log.
 
